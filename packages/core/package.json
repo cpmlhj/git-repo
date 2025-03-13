@@ -1,0 +1,29 @@
+{
+	"name": "@github-analytics/core",
+	"version": "0.1.0",
+	"private": true,
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"scripts": {
+		"build": "tsc",
+		"dev": "tsc --watch",
+		"lint": "eslint src/**/*.ts",
+		"clean": "rm -rf dist"
+	},
+	"dependencies": {
+		"@octokit/rest": "^21.1.1",
+		"@types/colors": "^1.2.4",
+		"@types/node-cron": "^3.0.11",
+		"@types/p-queue": "^3.2.1",
+		"@types/p-retry": "^3.0.1",
+		"axios": "^1.6.2",
+		"colors": "^1.4.0",
+		"dotenv": "^16.4.7",
+		"https-proxy-agent": "^7.0.6",
+		"natural": "^6.10.4",
+		"node-cron": "^3.0.3",
+		"p-queue": "^8.1.0",
+		"p-retry": "^6.2.1",
+		"yaml": "^2.7.0"
+	}
+}
