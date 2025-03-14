@@ -2,6 +2,7 @@
 	"name": "@github-analytics/cli",
 	"version": "0.1.0",
 	"private": true,
+	"main": "dist/index.js",
 	"scripts": {
 		"build": "tsc",
 		"dev": "tsc -w",
