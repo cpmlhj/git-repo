@@ -1,5 +1,5 @@
 import { Octokit } from '@octokit/rest'
-import { GitHubEvent, IGitHubClient } from './types'
+import { GitHubEvent, IGitHubClient } from '../types'
 
 /**
  * 基于Octokit的GitHub API客户端实现

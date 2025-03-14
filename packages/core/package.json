@@ -4,9 +4,51 @@
 	"private": true,
 	"main": "./dist/index.js",
 	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.mjs",
+			"require": "./dist/index.js"
+		},
+		"./config": {
+			"types": "./dist/config/index.d.ts",
+			"import": "./dist/config/index.mjs",
+			"require": "./dist/config/index.js"
+		},
+		"./notification": {
+			"types": "./dist/notification/index.d.ts",
+			"import": "./dist/notification/index.mjs",
+			"require": "./dist/notification/index.js"
+		},
+		"./github": {
+			"types": "./dist/github/index.d.ts",
+			"import": "./dist/github/index.mjs",
+			"require": "./dist/github/index.js"
+		},
+		"./scheduler": {
+			"types": "./dist/scheduler/index.d.ts",
+			"import": "./dist/scheduler/index.mjs",
+			"require": "./dist/scheduler/index.js"
+		},
+		"./subscription": {
+			"types": "./dist/subscription/index.d.ts",
+			"import": "./dist/subscription/index.mjs",
+			"require": "./dist/subscription/index.js"
+		},
+		"./types": {
+			"types": "./dist/types/index.d.ts",
+			"import": "./dist/types/index.mjs",
+			"require": "./dist/types/index.js"
+		}
+	},
+	"files": [
+		"dist",
+		"README.md",
+		"package.json"
+	],
 	"scripts": {
-		"build": "tsc",
-		"dev": "tsc --watch",
+		"build": "tsup",
+		"dev": "tsup --watch",
 		"lint": "eslint src/**/*.ts",
 		"clean": "rm -rf dist"
 	},
@@ -26,6 +68,7 @@
 		"@types/colors": "^1.2.4",
 		"@types/node-cron": "^3.0.11",
 		"@types/p-queue": "^3.2.1",
-		"@types/p-retry": "^3.0.1"
+		"@types/p-retry": "^3.0.1",
+		"tsup": "^8.0.2"
 	}
 }

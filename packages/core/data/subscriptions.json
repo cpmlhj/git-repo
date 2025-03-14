@@ -1,8 +1,0 @@
-[
-  {
-    "owner": "langchain-ai",
-    "repo": "langchain",
-    "frequency": "daily",
-    "eventTypes": ["issues", "pull_requests", "releases", "discussions"]
-  }
-]
