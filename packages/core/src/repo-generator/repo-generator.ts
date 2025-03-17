@@ -1,55 +1,89 @@
-import { GitHubEvent, GitHubEventType } from '../types'
-import colors from 'colors'
+import { GitHubEvent, GitHubEventType, LLMModelConfig } from '../types'
+import { OctokitGitHubClient } from '../github'
+import { OpenAIClient } from '@github-sentinel/llm'
+import { EventContentGenerators } from './events_outpus'
+import fs from 'fs'
+import path from 'path'
+
+interface ReportGeneratorConfig {
+	githubToken: string
+	openaiConfig?: LLMModelConfig
+}
+
 /**
  * 报告生成器类
  */
 export class ReportGenerator {
+	private llmClient: OpenAIClient | undefined
+
+	private githubClient: OctokitGitHubClient
+
+	constructor(config: ReportGeneratorConfig) {
+		if (config.openaiConfig) {
+			this.llmClient = new OpenAIClient(config.openaiConfig)
+		}
+		this.githubClient = new OctokitGitHubClient(config.githubToken)
+	}
+
 	/**
 	 * 生成报告
 	 */
 	public async generateReport(params: {
 		owner: string
 		repo: string
-		events: GitHubEvent[]
+		eventTypes: Array<GitHubEventType>
 		period: 'daily' | 'weekly'
+		export?: {
+			output_dir: string
+		}
+		lastCheck?: Date
 	}): Promise<string> {
-		const { owner, repo, events, period } = params
-		const periodText = period === 'daily' ? '日报' : '周报'
-
-		// 按事件类型分组
-		const eventsByType = this.groupEventsByType(events)
-
-		// 生成 Markdown 格式的报告
-		let report = `# GitHub 仓库 ${owner}/${repo} ${periodText}\n\n`
-
-		// 添加统计信息
-		report += this.generateStatistics(eventsByType)
-
-		// 添加详细事件信息
-		report += this.generateEventDetails(eventsByType)
-
-		return report
-	}
-
-	/**
-	 * 按事件类型分组
-	 */
-	private groupEventsByType(
-		events: GitHubEvent[]
-	): Record<string, GitHubEvent[]> {
-		return events.reduce(
-			(acc, event) => {
-				const type = event.type?.toLowerCase()
-				if (type) {
-					if (!acc[type]) {
-						acc[type] = []
-					}
-					acc[type].push(event)
-				}
-				return acc
-			},
-			{} as Record<string, GitHubEvent[]>
+		const date = new Date().toISOString().split('T')[0] + `__${Date.now()}`
+		const events = await this.githubClient.getRepositoryEvents(
+			{ owner: params.owner, repo: params.repo },
+			params.lastCheck
 		)
+		if (events && Array.isArray(events)) {
+			const filteredEvents = events.filter((event: GitHubEvent) =>
+				params.eventTypes?.includes(event.type as any)
+			)
+			if (filteredEvents.length === 0) {
+				return '当前仓库无事件'
+			}
+			const periodText = params.period === 'daily' ? '日报' : '周报'
+
+			// 添加详细事件信息
+			const { content, event_data } = await this.contentGenerators({
+				owner: params.owner,
+				repo: params.repo,
+				export_events: params.eventTypes
+			})
+
+			// 生成 Markdown 格式的报告
+			let report = `# GitHub 仓库 ${params.owner}/${params.repo} ${periodText}\n\n`
+
+			// 添加统计信息
+			report += this.generateStatistics(event_data)
+
+			// 添加详细事件信息
+			report += content
+			// 生成AI分析总结
+			if (this.llmClient) {
+				report += await this.generateAISummary(event_data)
+			}
+
+			if (params.export) {
+				if (!fs.existsSync(params.export.output_dir)) {
+					fs.mkdirSync(params.export.output_dir, { recursive: true })
+				}
+				// 导出 Markdown 文件
+				const fileName = `${params.owner}-${params.repo}-${date}.md`
+				const filePath = path.join(params.export.output_dir, fileName)
+				fs.writeFileSync(filePath, report)
+			}
+			return 'report'
+		}
+		return '当前仓库无事件'
 	}
 
 	/**
@@ -69,24 +103,87 @@ export class ReportGenerator {
 	}
 
 	/**
-	 * 生成事件详细信息
+	 * 生成AI分析总结
 	 */
-	private generateEventDetails(
-		eventsByType: Record<string, GitHubEvent[]>
-	): string {
-		let details = ''
+	private async generateAISummary(
+		eventsByType: Partial<Record<GitHubEventType, any>>
+	): Promise<string> {
+		let summary = '## AI 分析总结\n\n'
 
-		for (const [type, events] of Object.entries(eventsByType)) {
-			details += `## ${this.formatEventType(type)}\n\n`
-
-			for (const event of events) {
-				details += this.formatEvent(event)
-			}
-
-			details += '\n'
+		// 处理Issues
+		if (eventsByType['IssuesEvent']) {
+			const issuesPrompt = this.generateIssuesPrompt(
+				eventsByType['IssuesEvent']
+			)
+			const issuesAnalysis = await this.llmClient?.complete(issuesPrompt)
+			summary += '### Issues 分析\n\n' + issuesAnalysis?.content + '\n\n'
 		}
 
-		return details
+		// 处理Pull Requests
+		if (eventsByType['PullRequestEvent']) {
+			const prPrompt = this.generatePullRequestsPrompt(
+				eventsByType['PullRequestEvent']
+			)
+			const prAnalysis = await this.llmClient?.complete(prPrompt)
+			summary +=
+				'### Pull Requests 分析\n\n' + prAnalysis?.content + '\n\n'
+		}
+
+		return summary
+	}
+
+	/**
+	 * 生成Issues分析提示
+	 */
+	private generateIssuesPrompt(issues: any[]): string {
+		const issuesData = issues
+			.map((event) => {
+				const pull_request = event.pull_request
+				return {
+					title: event.title,
+					state: event.state,
+					created_at: event.created_at,
+					updated_at: event.updated_at,
+					comments: event.comments,
+					labels: event.labels?.map((label: any) => label.name),
+					author_type: event.author_association,
+					is_pr: !!pull_request,
+					merged_at: pull_request?.merged_at,
+					draft: event.draft
+				}
+			})
+			.filter(Boolean)
+
+		return `请分析以下Issues数据，总结主要问题类型、解决进度和重要性：\n\n${JSON.stringify(
+			issuesData,
+			null,
+			2
+		)}\n\n请提供以下分析：\n1. 问题分类和分布\n2. 解决进度和效率\n3. 重要或紧急的问题\n4. 建议和改进方向`
+	}
+
+	/**
+	 * 生成Pull Requests分析提示
+	 */
+	private generatePullRequestsPrompt(prs: any[]): string {
+		const prsData = prs
+			.map((event) => {
+				return {
+					title: event.title,
+					state: event.state,
+					action: event.action,
+					created_at: event.created_at,
+					updated_at: event.updated_at,
+					base: event.base.ref,
+					head: event.head.ref
+				}
+			})
+			.filter(Boolean)
+
+		return `请分析以下Pull Requests数据，总结代码变更情况和合并状态：\n\n${JSON.stringify(
+			prsData,
+			null,
+			2
+		)}\n\n请提供以下分析：\n1. 代码变更类型和分布\n2. 合并进度和效率\n3. 重要的功能更新或修复\n4. 建议和改进方向`
 	}
 
 	/**
@@ -101,159 +198,6 @@ export class ReportGenerator {
 		}
 
 		return typeMap[type as GitHubEventType] || type
-	}
-
-	/**
-	 * 格式化单个事件
-	 */
-	private formatEvent(event: GitHubEvent): string {
-		const actor = event.actor.login
-		const time = new Date(event.created_at || '').toLocaleString('zh-CN')
-		let content = ''
-		const color =
-			this.eventTypeColorMap[
-				(event.type as GitHubEventType) ||
-					this.eventTypeColorMap.DiscussionEvent
-			]
-		switch (event.type) {
-			case 'IssuesEvent':
-				content = this.formatIssueEvent(event)
-				break
-			case 'PullRequestEvent':
-				content = this.formatPullRequestEvent(event)
-				break
-			case 'ReleaseEvent':
-				content = this.formatReleaseEvent(event)
-				break
-			case 'DiscussionEvent':
-				content = this.formatDiscussionEvent(event)
-				break
-			case 'IssueCommentEvent':
-				content = this.formatIssueCommentEvent(event)
-				break
-			case 'PullRequestReviewEvent':
-				content = this.formatPullRequestReviewEvent(event)
-				break
-			case 'PullRequestReviewCommentEvent':
-				content = this.formatPullRequestReviewCommentEvent(event)
-				break
-			case 'PushEvent':
-				content = this.formatPushEvent(event)
-				break
-			case 'DiscussionCommentEvent':
-				content = this.formatDiscussionCommentEvent(event)
-				break
-			case 'ForkEvent':
-				content = this.formatForkEvent(event)
-				break
-			default:
-				content = `未知事件类型: ${event.type}`
-		}
-
-		// @ts-ignore
-		return colors[color](
-			`### ${content}\n- 操作者: ${actor}\n- 时间: ${time}\n\n`
-		)
-	}
-
-	/**
-	 * 格式化 Issue 事件
-	 */
-	private formatIssueEvent(event: GitHubEvent): string {
-		const { action, issue } = event.payload
-		const title = issue?.title
-		const number = issue?.number
-		const url = issue?.html_url
-
-		return `Issue #${number}: ${title}\n- 动作: ${this.formatAction(action || '')}\n- 链接: ${url}`
-	}
-
-	/**
-	 * 格式化 Pull Request 事件
-	 */
-	private formatPullRequestEvent(event: any): string {
-		const title = event.payload?.pull_request?.title
-		const number = event.payload?.number
-		const url = event.payload?.pull_request?.html_url
-		const action = event.payload?.action
-		return `PR #${number}: ${title}\n- 动作: ${this.formatAction(action || '')}\n- 链接: ${url}`
-	}
-
-	/**
-	 * 格式化 Release 事件
-	 */
-	private formatReleaseEvent(event: any): string {
-		const { action, release } = event.payload
-		const tag = release.tag_name
-		const name = release.name || tag
-		const url = release.html_url
-
-		return `Release ${tag}: ${name}\n- 动作: ${this.formatAction(action)}\n- 链接: ${url}`
-	}
-
-	private formatIssueCommentEvent(event: any): string {
-		const { action, issue, comment } = event.payload
-		const title = issue.title
-		const number = issue.number
-		const url = comment.html_url
-
-		return `Issue #${number} 评论: ${title}\n- 动作: ${this.formatAction(action)}\n- 链接: ${url}`
-	}
-
-	private formatPullRequestReviewEvent(event: any): string {
-		const { action, pull_request, review } = event.payload
-		const title = pull_request.title
-		const number = pull_request.number
-		const url = review.html_url
-		const state = review.state
-
-		return `PR #${number} 审查: ${title}\n- 动作: ${this.formatAction(action)}\n- 状态: ${state}\n- 链接: ${url}`
-	}
-
-	private formatPullRequestReviewCommentEvent(event: any): string {
-		const { action, pull_request, comment } = event.payload
-		const title = pull_request.title
-		const number = pull_request.number
-		const url = comment.html_url
-
-		return `PR #${number} 评论: ${title}\n- 动作: ${this.formatAction(action)}\n- 链接: ${url}`
-	}
-
-	private formatPushEvent(event: any): string {
-		const { ref, commits } = event.payload
-		const branch = ref.replace('refs/heads/', '')
-		const count = commits.length
-
-		return `推送到 ${branch}\n- 提交数: ${count}\n- 提交信息:\n${commits.map((commit: any) => `  - ${commit.message}`).join('\n')}`
-	}
-
-	private formatDiscussionCommentEvent(event: any): string {
-		const { action, discussion, comment } = event.payload
-		const title = discussion.title
-		const number = discussion.number
-		const url = comment.html_url
-
-		return `讨论 #${number} 评论: ${title}\n- 动作: ${this.formatAction(action)}\n- 链接: ${url}`
-	}
-
-	private formatForkEvent(event: any): string {
-		const { forkee } = event.payload
-		const url = forkee.html_url
-		const fullName = forkee.full_name
-
-		return `Fork 到 ${fullName}\n- 链接: ${url}`
-	}
-
-	/**
-	 * 格式化 Discussion 事件
-	 */
-	private formatDiscussionEvent(event: any): string {
-		const { action, discussion } = event.payload
-		const title = discussion.title
-		const number = discussion.number
-		const url = discussion.html_url
-
-		return `Discussion #${number}: ${title}\n- 动作: ${this.formatAction(action)}\n- 链接: ${url}`
 	}
 
 	/**
@@ -275,18 +219,42 @@ export class ReportGenerator {
 	}
 
 	/**
-	 * 事件类型对应的颜色映射
+	 * 导出仓库的issues和pull requests列表为Markdown文件
 	 */
-	private readonly eventTypeColorMap: Record<GitHubEventType, string> = {
-		IssuesEvent: 'blue',
-		PullRequestEvent: 'magenta',
-		ReleaseEvent: 'green',
-		DiscussionEvent: 'cyan',
-		IssueCommentEvent: 'lightblue',
-		PullRequestReviewEvent: 'bgMagenta',
-		PullRequestReviewCommentEvent: 'bgMagenta',
-		PushEvent: 'yellow',
-		DiscussionCommentEvent: 'cyanBright',
-		ForkEvent: 'red'
+	async contentGenerators({
+		owner,
+		repo,
+		export_events = []
+	}: {
+		owner: string
+		repo: string
+		export_events: Array<GitHubEventType>
+		outputDir?: string
+	}) {
+		try {
+			const date = new Date().toISOString().split('T')[0]
+			let content = `# ${owner}/${repo} 仓库报告 (${date})\n\n`
+			const event_data: Partial<Record<GitHubEventType, any>> = {}
+			for (const event of export_events) {
+				const data = await this.githubClient.clientListForEvent({
+					owner,
+					repo,
+					eventType: event
+				})
+				event_data[event] = data
+				const { title, generate } =
+					EventContentGenerators[
+						event as keyof typeof EventContentGenerators
+					]
+				content += `## ${title}\n\n ${generate(data || [])}`
+			}
+			return {
+				content,
+				event_data
+			}
+		} catch (e) {
+			console.error('导出Markdown文件时发生错误:', e)
+			throw e
+		}
 	}
 }

@@ -103,3 +103,12 @@ export interface INotificationSystem {
 	/** 移除通知配置 */
 	removeNotificationConfig(type: string, target: string): Promise<void>
 }
+
+export interface LLMModelConfig {
+	apiKey: string
+	model?: string
+	baseURL?: string
+	maxTokens?: number
+	temperature?: number
+	proxyAgent?: any
+}

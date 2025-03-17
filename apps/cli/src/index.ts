@@ -1,7 +1,6 @@
 import { Command } from 'commander'
 import inquirer from 'inquirer'
 import {
-	OctokitGitHubClient,
 	SubscriptionManager,
 	ConfigManager,
 	SubscriptionConfig,
@@ -9,6 +8,7 @@ import {
 	NotificationSystem,
 	GitHubEventType
 } from '@github-analytics/core'
+import { HttpsProxyAgent } from 'https-proxy-agent'
 const program = new Command()
 
 interface SubscriptionAnswers {
@@ -126,8 +126,7 @@ async function removeSubscription() {
 }
 
 async function checkUpdates() {
-	const config = ConfigManager.getInstance().getConfig()
-	const octokit = OctokitGitHubClient.getInstance(config.githubToken)
+	const config = ConfigManager.getInstance()
 	const notification = new NotificationSystem()
 	const subscriptionManager = await SubscriptionManager.getInstance()
 	const subscriptions = await subscriptionManager.getSubscriptions()
@@ -149,12 +148,18 @@ async function checkUpdates() {
 				}))
 			}
 		])
+	// 检查是否存在代理
+	let proxyAgent
+	if (process.env.proxy) {
+		proxyAgent = new HttpsProxyAgent(process.env.proxy)
+	}
 
 	// 立即生成当前报告
 	const sceduler = Scheduler.getInstance(
 		subscriptionManager,
 		notification,
-		octokit
+		config,
+		proxyAgent
 	)
 	sceduler.checkNow(subscription)
 }

@@ -1,11 +1,12 @@
 import cron from 'node-cron'
 import PQueue from 'p-queue'
 import pRetry from 'p-retry'
-import { ConfigManager } from '../config'
+import { Config, ConfigManager } from '../config'
 import { SubscriptionManager } from '../subscription'
 import { NotificationSystem } from '../notification'
-import { GitHubEvent, IGitHubClient, SubscriptionConfig } from '../types'
+import { SubscriptionConfig } from '../types'
 import { ReportGenerator } from '../repo-generator'
+import path from 'path'
 
 /**
  * 定时调度器类
@@ -15,20 +16,26 @@ export class Scheduler {
 	private tasks: Map<string, cron.ScheduledTask>
 	private subscriptionManager: SubscriptionManager
 	private notificationSystem: NotificationSystem
-	private githubClient: IGitHubClient
+	private config: Config
 	private reportGenerator: ReportGenerator
 	private queue: PQueue
 
 	private constructor(
 		subscriptionManager: SubscriptionManager,
 		notificationSystem: NotificationSystem,
-		githubClient: IGitHubClient
+		config: ConfigManager,
+		proxyAgent?: any
 	) {
 		this.tasks = new Map()
 		this.subscriptionManager = subscriptionManager
 		this.notificationSystem = notificationSystem
-		this.githubClient = githubClient
-		this.reportGenerator = new ReportGenerator()
+		this.config = config.getConfig()
+		this.reportGenerator = new ReportGenerator({
+			githubToken: this.config.githubToken,
+			openaiConfig: this.config.llm
+				? Object.assign(this.config.llm, { proxyAgent })
+				: undefined
+		})
 		// 初始化队列，限制并发数为3
 		this.queue = new PQueue({ concurrency: 3 })
 	}
@@ -39,13 +46,15 @@ export class Scheduler {
 	public static getInstance(
 		subscriptionManager: SubscriptionManager,
 		notificationSystem: NotificationSystem,
-		githubClient: IGitHubClient
+		config: ConfigManager,
+		proxyAgent?: any
 	): Scheduler {
 		if (!Scheduler.instance) {
 			Scheduler.instance = new Scheduler(
 				subscriptionManager,
 				notificationSystem,
-				githubClient
+				config,
+				proxyAgent
 			)
 		}
 		return Scheduler.instance
@@ -112,7 +121,6 @@ export class Scheduler {
 				)
 			}
 		}
-
 		try {
 			await pRetry(async () => {
 				const lastCheck = new Date()
@@ -121,41 +129,37 @@ export class Scheduler {
 						(subscription.frequency === 'daily' ? 1 : 7)
 				)
 
-				const events = await this.githubClient.getRepositoryEvents(
-					{ owner: subscription.owner, repo: subscription.repo },
-					lastCheck
-				)
-
-				const filteredEvents = events.filter((event: GitHubEvent) =>
-					subscription.eventTypes?.includes(event.type as any)
-				)
-				if (filteredEvents.length > 0) {
-					const report = await this.reportGenerator.generateReport({
-						owner: subscription.owner,
-						repo: subscription.repo,
-						events: filteredEvents,
-						period: subscription.frequency
-					})
-
-					const config = ConfigManager.getInstance().getConfig()
-					if (config.notifications.email) {
-						await this.notificationSystem.sendNotification(
-							{
-								type: 'email',
-								target: config.notifications.email.from
-							},
-							report
-						)
+				const report = await this.reportGenerator.generateReport({
+					owner: subscription.owner,
+					repo: subscription.repo,
+					period: subscription.frequency,
+					eventTypes: subscription.eventTypes || [],
+					lastCheck,
+					export: {
+						output_dir: path.resolve(process.cwd(), 'reports')
 					}
-					if (config.notifications.webhook) {
-						await this.notificationSystem.sendNotification(
-							{
-								type: 'webhook',
-								target: config.notifications.webhook.url
-							},
-							report
-						)
-					}
+				})
+
+				if (this.config.notifications.email) {
+					await this.notificationSystem.sendNotification(
+						{
+							type: 'email',
+							target: this.config.notifications.email.from
+						},
+						report
+					)
+				}
+				if (
+					this.config.notifications.webhook &&
+					this.config.notifications.webhook.url
+				) {
+					await this.notificationSystem.sendNotification(
+						{
+							type: 'webhook',
+							target: this.config.notifications.webhook.url
+						},
+						report
+					)
 				}
 			}, retryOptions)
 		} catch (error) {

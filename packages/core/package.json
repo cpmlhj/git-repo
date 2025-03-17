@@ -53,6 +53,7 @@
 		"clean": "rm -rf dist"
 	},
 	"dependencies": {
+		"@github-sentinel/llm": "workspace:*",
 		"@octokit/rest": "^21.1.1",
 		"axios": "^1.6.2",
 		"colors": "^1.4.0",

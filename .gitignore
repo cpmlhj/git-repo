@@ -3,5 +3,6 @@ node_modules
 *.env
 *.yaml
 dist
-data
+apps/cli/data/*
 .turbo
+reports

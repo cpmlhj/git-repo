@@ -1,6 +1,5 @@
 import { Octokit } from '@octokit/rest'
-import { GitHubEvent, IGitHubClient } from '../types'
-
+import { GitHubEventType, IGitHubClient } from '../types'
 /**
  * 基于Octokit的GitHub API客户端实现
  */
@@ -87,35 +86,72 @@ export class OctokitGitHubClient implements IGitHubClient {
 		}
 	}
 
-	// 获取最新release信息
-	async listForRepo({
+	async clientListForEvent({
 		owner,
-		repo
+		repo,
+		eventType,
+		since,
+		state,
+		per_page = 10, // 默认十条
+		page = 1
 	}: {
 		owner: string
 		repo: string
-	}): Promise<any> {
-		try {
-			const { data } = await this.client.issues.listForRepo({
-				owner,
-				repo
-			})
-			return data
-		} catch (e) {
-			console.warn(e)
+		eventType: GitHubEventType
+		since?: Date
+		state?: 'open' | 'closed'
+		per_page?: number
+		page?: number
+	}) {
+		let list_fn
+		let fn_args: any = {
+			per_page,
+			page
 		}
-	}
-	// 获取最近的PR
-	async list({ owner, repo }: { owner: string; repo: string }): Promise<any> {
+		switch (eventType) {
+			case 'IssuesEvent':
+				list_fn = this.client.issues.listForRepo
+				fn_args = {
+					...fn_args,
+					since
+				}
+				break
+			case 'PullRequestEvent':
+				list_fn = this.client.pulls.list
+				fn_args = {
+					...fn_args,
+					state
+				}
+				break
+			case 'PullRequestReviewEvent':
+				list_fn = this.client.pulls.listReviews
+				fn_args = {
+					pull_number: 30
+				}
+				break
+			case 'ForkEvent':
+				list_fn = this.client.repos.listForks
+				break
+			case 'PushEvent':
+				list_fn = this.client.repos.listCommits
+				break
+			case 'ReleaseEvent':
+				list_fn = this.client.repos.listReleases
+				break
+			case 'DiscussionEvent':
+				return []
+			default:
+				throw new Error(`Unsupported event type: ${eventType}`)
+		}
 		try {
-			const { data } = await this.client.pulls.list({
+			const { data } = await list_fn({
 				owner,
-				repo
+				repo,
+				...fn_args
 			})
-
 			return data
 		} catch (e) {
-			console.warn(e)
+			console.error(e)
 		}
 	}
 }
