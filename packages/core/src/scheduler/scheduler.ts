@@ -123,18 +123,11 @@ export class Scheduler {
 		}
 		try {
 			await pRetry(async () => {
-				const lastCheck = new Date()
-				lastCheck.setDate(
-					lastCheck.getDate() -
-						(subscription.frequency === 'daily' ? 1 : 7)
-				)
-
 				const report = await this.reportGenerator.generateReport({
 					owner: subscription.owner,
 					repo: subscription.repo,
 					period: subscription.frequency,
 					eventTypes: subscription.eventTypes || [],
-					lastCheck,
 					export: {
 						output_dir: path.resolve(process.cwd(), 'reports')
 					}

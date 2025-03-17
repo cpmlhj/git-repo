@@ -3,6 +3,6 @@ node_modules
 *.env
 *.yaml
 dist
-apps/cli/data/*
+data/*.json
 .turbo
 reports

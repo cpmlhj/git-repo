@@ -36,6 +36,31 @@ function generate_event_types() {
 	})
 }
 
+async function getInstances(args?: any) {
+	const { proxy } = args
+	const config = ConfigManager.getInstance()
+	const notification = new NotificationSystem()
+	const subscriptionManager = await SubscriptionManager.getInstance()
+	let proxyAgent
+	if (proxy || process.env.proxy) {
+		proxyAgent = new HttpsProxyAgent(proxy || process.env.proxy)
+	}
+
+	// 立即生成当前报告
+	const sceduler = Scheduler.getInstance(
+		subscriptionManager,
+		notification,
+		config,
+		proxyAgent
+	)
+	return {
+		sceduler,
+		config,
+		notification,
+		subscriptionManager
+	}
+}
+
 async function addSubscription() {
 	const answers = await inquirer.prompt<SubscriptionAnswers>([
 		{
@@ -66,8 +91,7 @@ async function addSubscription() {
 			choices: generate_event_types()
 		}
 	])
-
-	const subscriptionManager = await SubscriptionManager.getInstance()
+	const { subscriptionManager } = await getInstances()
 	await subscriptionManager.addSubscription({
 		owner: answers.owner,
 		repo: answers.repo,
@@ -79,7 +103,7 @@ async function addSubscription() {
 }
 
 async function listSubscriptions() {
-	const subscriptionManager = await SubscriptionManager.getInstance()
+	const { subscriptionManager } = await getInstances()
 	const subscriptions = await subscriptionManager.getSubscriptions()
 
 	if (subscriptions.length === 0) {
@@ -97,7 +121,7 @@ async function listSubscriptions() {
 }
 
 async function removeSubscription() {
-	const subscriptionManager = await SubscriptionManager.getInstance()
+	const { subscriptionManager } = await getInstances()
 	const subscriptions = await subscriptionManager.getSubscriptions()
 
 	if (subscriptions.length === 0) {
@@ -125,10 +149,8 @@ async function removeSubscription() {
 	console.log('订阅已取消！')
 }
 
-async function checkUpdates() {
-	const config = ConfigManager.getInstance()
-	const notification = new NotificationSystem()
-	const subscriptionManager = await SubscriptionManager.getInstance()
+async function checkUpdates(args: any) {
+	const { subscriptionManager, sceduler } = await getInstances(args)
 	const subscriptions = await subscriptionManager.getSubscriptions()
 
 	if (subscriptions.length === 0) {
@@ -148,20 +170,15 @@ async function checkUpdates() {
 				}))
 			}
 		])
-	// 检查是否存在代理
-	let proxyAgent
-	if (process.env.proxy) {
-		proxyAgent = new HttpsProxyAgent(process.env.proxy)
-	}
-
-	// 立即生成当前报告
-	const sceduler = Scheduler.getInstance(
-		subscriptionManager,
-		notification,
-		config,
-		proxyAgent
-	)
 	sceduler.checkNow(subscription)
+}
+
+async function startScheduler(args: any) {
+	const { sceduler } = await getInstances(args)
+
+	console.log('调度器已启动，正在后台运行...')
+	// 启动调度器
+	sceduler.start()
 }
 
 program
@@ -175,6 +192,18 @@ program.command('list').description('列出所有订阅').action(listSubscriptio
 
 program.command('remove').description('取消仓库订阅').action(removeSubscription)
 
-program.command('check').description('立即检查仓库更新').action(checkUpdates)
+program
+	.command('check')
+	.option('-p, --proxy <VALUE>', '设置代理地址', undefined)
+	.option('-f, --file-path <VALUE>', '导出文件路径', undefined)
+	.description('立即检查仓库更新')
+	.action(checkUpdates)
+
+program
+	.command('start')
+	.option('-p, --proxy <VALUE>', '设置代理地址', undefined)
+	.option('-f, --file-path <VALUE>', '导出文件路径', undefined)
+	.description('启动调度器在后台运行')
+	.action(startScheduler)
 
 program.parse()

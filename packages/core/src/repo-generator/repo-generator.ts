@@ -36,54 +36,41 @@ export class ReportGenerator {
 		export?: {
 			output_dir: string
 		}
-		lastCheck?: Date
 	}): Promise<string> {
 		const date = new Date().toISOString().split('T')[0] + `__${Date.now()}`
-		const events = await this.githubClient.getRepositoryEvents(
-			{ owner: params.owner, repo: params.repo },
-			params.lastCheck
-		)
-		if (events && Array.isArray(events)) {
-			const filteredEvents = events.filter((event: GitHubEvent) =>
-				params.eventTypes?.includes(event.type as any)
-			)
-			if (filteredEvents.length === 0) {
-				return '当前仓库无事件'
-			}
-			const periodText = params.period === 'daily' ? '日报' : '周报'
+		const periodText = params.period === 'daily' ? '日报' : '周报'
 
-			// 添加详细事件信息
-			const { content, event_data } = await this.contentGenerators({
-				owner: params.owner,
-				repo: params.repo,
-				export_events: params.eventTypes
-			})
+		// 添加详细事件信息
+		const { content, event_data } = await this.contentGenerators({
+			owner: params.owner,
+			repo: params.repo,
+			export_events: params.eventTypes,
+			period: params.period
+		})
 
-			// 生成 Markdown 格式的报告
-			let report = `# GitHub 仓库 ${params.owner}/${params.repo} ${periodText}\n\n`
+		// 生成 Markdown 格式的报告
+		let report = `# GitHub 仓库 ${params.owner}/${params.repo} ${periodText}\n\n`
 
-			// 添加统计信息
-			report += this.generateStatistics(event_data)
+		// 添加统计信息
+		report += this.generateStatistics(event_data)
 
-			// 添加详细事件信息
-			report += content
-			// 生成AI分析总结
-			if (this.llmClient) {
-				report += await this.generateAISummary(event_data)
-			}
-
-			if (params.export) {
-				if (!fs.existsSync(params.export.output_dir)) {
-					fs.mkdirSync(params.export.output_dir, { recursive: true })
-				}
-				// 导出 Markdown 文件
-				const fileName = `${params.owner}-${params.repo}-${date}.md`
-				const filePath = path.join(params.export.output_dir, fileName)
-				fs.writeFileSync(filePath, report)
-			}
-			return 'report'
+		// 添加详细事件信息
+		report += content
+		// 生成AI分析总结
+		if (this.llmClient) {
+			report += await this.generateAISummary(event_data)
 		}
-		return '当前仓库无事件'
+
+		if (params.export) {
+			if (!fs.existsSync(params.export.output_dir)) {
+				fs.mkdirSync(params.export.output_dir, { recursive: true })
+			}
+			// 导出 Markdown 文件
+			const fileName = `${params.owner}-${params.repo}-${date}.md`
+			const filePath = path.join(params.export.output_dir, fileName)
+			fs.writeFileSync(filePath, report)
+		}
+		return report
 	}
 
 	/**
@@ -224,11 +211,13 @@ export class ReportGenerator {
 	async contentGenerators({
 		owner,
 		repo,
+		period = 'daily',
 		export_events = []
 	}: {
 		owner: string
 		repo: string
 		export_events: Array<GitHubEventType>
+		period: 'daily' | 'weekly'
 		outputDir?: string
 	}) {
 		try {
@@ -239,7 +228,8 @@ export class ReportGenerator {
 				const data = await this.githubClient.clientListForEvent({
 					owner,
 					repo,
-					eventType: event
+					eventType: event,
+					period
 				})
 				event_data[event] = data
 				const { title, generate } =

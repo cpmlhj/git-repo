@@ -5,25 +5,7 @@
     "frequency": "daily",
     "eventTypes": [
       "IssuesEvent",
-      "PullRequestEvent",
-      "ForkEvent",
-      "PushEvent",
-      "ReleaseEvent",
-      "DiscussionEvent"
-    ]
-  },
-  {
-    "owner": "facebook",
-    "repo": "react",
-    "frequency": "daily",
-    "eventTypes": [
-      "IssuesEvent",
-      "PullRequestReviewEvent",
-      "PullRequestEvent",
-      "ForkEvent",
-      "PushEvent",
-      "ReleaseEvent",
-      "DiscussionEvent"
+      "PullRequestEvent"
     ]
   }
 ]

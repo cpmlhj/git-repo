@@ -90,7 +90,7 @@ export class OctokitGitHubClient implements IGitHubClient {
 		owner,
 		repo,
 		eventType,
-		since,
+		period,
 		state,
 		per_page = 10, // 默认十条
 		page = 1
@@ -98,22 +98,29 @@ export class OctokitGitHubClient implements IGitHubClient {
 		owner: string
 		repo: string
 		eventType: GitHubEventType
-		since?: Date
+		period: 'daily' | 'weekly'
 		state?: 'open' | 'closed'
 		per_page?: number
 		page?: number
 	}) {
 		let list_fn
+		const dateNow = new Date().getTime()
+		const since =
+			period === 'daily'
+				? new Date(dateNow - 86400000) // 一天
+				: new Date(dateNow - 86400000 * 7) // 一周
 		let fn_args: any = {
 			per_page,
-			page
+			page,
+			since: since.toISOString(),
+			sort: 'updated',
+			direction: 'desc'
 		}
 		switch (eventType) {
 			case 'IssuesEvent':
 				list_fn = this.client.issues.listForRepo
 				fn_args = {
-					...fn_args,
-					since
+					...fn_args
 				}
 				break
 			case 'PullRequestEvent':
@@ -126,6 +133,7 @@ export class OctokitGitHubClient implements IGitHubClient {
 			case 'PullRequestReviewEvent':
 				list_fn = this.client.pulls.listReviews
 				fn_args = {
+					...fn_args,
 					pull_number: 30
 				}
 				break
