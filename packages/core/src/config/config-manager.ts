@@ -1,7 +1,7 @@
 import dotenv from 'dotenv'
 import { parse } from 'yaml'
 import { readFileSync } from 'fs'
-import { resolve } from 'path'
+import { resolve, isAbsolute } from 'path'
 import { LLMModelConfig } from '../types'
 
 /**
@@ -43,6 +43,15 @@ export interface Config {
 	httpsProxy?: string
 	// llm 配置
 	llm?: Omit<LLMModelConfig, 'maxTokens' | 'temperature'>
+	// export file
+	exports?: {
+		/** 导出文件路径 */
+		path: string
+		/** 导出文件格式 */
+		format?: 'md' | 'json'
+		/** 是否导出 */
+		show_export: boolean
+	}
 }
 
 /**
@@ -73,6 +82,10 @@ export class ConfigManager {
 		return this.config
 	}
 
+	public setConfig<T extends keyof Config>(key: T, value: Config[T]) {
+		this.config[key] = value
+	}
+
 	/**
 	 * 加载配置
 	 */
@@ -89,14 +102,24 @@ export class ConfigManager {
 		} catch (error) {
 			console.warn('未找到 YAML 配置文件或解析失败，将使用默认配置')
 		}
-
 		// 合并环境变量和 YAML 配置
+		if (yamlConfig && yamlConfig.exports) {
+			if (
+				yamlConfig.exports.path &&
+				!isAbsolute(yamlConfig.exports.path)
+			) {
+				yamlConfig.exports.path = resolve(
+					process.cwd(),
+					yamlConfig.exports.path
+				)
+			}
+		}
 		return {
 			githubToken: process.env.GITHUB_TOKEN || '',
 			llm: {
-				apiKey: process.env.MODEL_API_KEY || '',
-				baseURL: process.env.MODEL_API_BASE_URL || '',
-				model: process.env.MODEL_NAME
+				apiKey: process.env.OPENAI_API_KEY || '',
+				baseURL: process.env.OPENAI_BASE_URL || '',
+				model: process.env.OPENAI_MODEL
 			},
 			notifications: {
 				email: yamlConfig?.notifications?.email || {
@@ -125,7 +148,8 @@ export class ConfigManager {
 					'issues' | 'pull_requests' | 'releases' | 'discussions'
 				>
 			},
-			httpsProxy: process.env.HTTPS_PROXY
+			httpsProxy: process.env.HTTPS_PROXY,
+			exports: yamlConfig?.exports || undefined
 		}
 	}
 }

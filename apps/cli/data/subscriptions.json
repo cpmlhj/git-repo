@@ -2,7 +2,20 @@
   {
     "owner": "langchain-ai",
     "repo": "langchain",
-    "frequency": "daily",
+    "frequency": {
+      "type": "custom"
+    },
+    "eventTypes": [
+      "IssuesEvent",
+      "PullRequestEvent"
+    ]
+  },
+  {
+    "owner": "facebook",
+    "repo": "react",
+    "frequency": {
+      "type": "daily"
+    },
     "eventTypes": [
       "IssuesEvent",
       "PullRequestEvent"

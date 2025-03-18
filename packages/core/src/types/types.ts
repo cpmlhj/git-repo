@@ -6,6 +6,10 @@ import { RestEndpointMethodTypes } from '@octokit/rest'
 export type GitHubEvent =
 	RestEndpointMethodTypes['activity']['listRepoEvents']['response']['data'][0]
 
+export type GithubIssuesState = 'open' | 'closed' | 'all'
+
+export type GithubRepoListSince = 'daily' | 'weekly' | 'custom'
+
 export type GitHubEventType =
 	| 'IssueCommentEvent'
 	| 'IssuesEvent'
@@ -18,6 +22,17 @@ export type GitHubEventType =
 	| 'DiscussionEvent'
 	| 'DiscussionCommentEvent'
 
+export type SubscriptionFrequency =
+	| { type: 'daily' }
+	| { type: 'weekly' }
+	| {
+			type: 'custom'
+			interval: {
+				start: string
+				end: string
+			}
+	  }
+
 /**
  * 订阅配置接口
  */
@@ -27,27 +42,10 @@ export interface SubscriptionConfig {
 	/** 仓库名称 */
 	repo: string
 	/** 更新通知频率 */
-	frequency: 'daily' | 'weekly'
+	frequency: SubscriptionFrequency
 	/** 关注的事件类型 */
 	eventTypes?: Array<GitHubEventType>
 }
-
-/**
- * GitHub 事件接口
- */
-// export interface GitHubEvent {
-//   id: string;
-//   type: string;
-//   created_at: string;
-//   actor: {
-//     login: string;
-//     avatar_url: string;
-//   };
-//   repo: {
-//     name: string;
-//   };
-//   payload: any;
-// }
 
 /**
  * 通知配置接口

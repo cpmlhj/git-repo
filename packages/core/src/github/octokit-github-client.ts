@@ -1,5 +1,12 @@
 import { Octokit } from '@octokit/rest'
-import { GitHubEventType, IGitHubClient } from '../types'
+import {
+	GitHubEventType,
+	IGitHubClient,
+	GithubIssuesState,
+	GithubRepoListSince
+} from '../types'
+import { format_range_date, returnISOString } from '../helpers/date-format'
+import dayjs from 'dayjs'
 /**
  * 基于Octokit的GitHub API客户端实现
  */
@@ -90,29 +97,25 @@ export class OctokitGitHubClient implements IGitHubClient {
 		owner,
 		repo,
 		eventType,
-		period,
-		state,
-		per_page = 10, // 默认十条
-		page = 1
+		since,
+		state = 'closed', // 默认获取已关闭的问题
+		per_page = 3, // 默认20条
+		page = 1,
+		range_date
 	}: {
 		owner: string
 		repo: string
 		eventType: GitHubEventType
-		period: 'daily' | 'weekly'
-		state?: 'open' | 'closed'
+		since: string
+		state?: GithubIssuesState
 		per_page?: number
 		page?: number
+		range_date?: [string, string]
 	}) {
 		let list_fn
-		const dateNow = new Date().getTime()
-		const since =
-			period === 'daily'
-				? new Date(dateNow - 86400000) // 一天
-				: new Date(dateNow - 86400000 * 7) // 一周
 		let fn_args: any = {
 			per_page,
 			page,
-			since: since.toISOString(),
 			sort: 'updated',
 			direction: 'desc'
 		}
@@ -120,7 +123,9 @@ export class OctokitGitHubClient implements IGitHubClient {
 			case 'IssuesEvent':
 				list_fn = this.client.issues.listForRepo
 				fn_args = {
-					...fn_args
+					...fn_args,
+					state,
+					since
 				}
 				break
 			case 'PullRequestEvent':
@@ -133,7 +138,6 @@ export class OctokitGitHubClient implements IGitHubClient {
 			case 'PullRequestReviewEvent':
 				list_fn = this.client.pulls.listReviews
 				fn_args = {
-					...fn_args,
 					pull_number: 30
 				}
 				break
@@ -142,6 +146,16 @@ export class OctokitGitHubClient implements IGitHubClient {
 				break
 			case 'PushEvent':
 				list_fn = this.client.repos.listCommits
+				fn_args = {
+					...fn_args,
+					since,
+					unit: range_date
+						? [
+								returnISOString(range_date[0]),
+								returnISOString(range_date[1])
+							]
+						: undefined
+				}
 				break
 			case 'ReleaseEvent':
 				list_fn = this.client.repos.listReleases
@@ -152,14 +166,35 @@ export class OctokitGitHubClient implements IGitHubClient {
 				throw new Error(`Unsupported event type: ${eventType}`)
 		}
 		try {
+			console.log(fn_args, '这是什么呢', range_date)
 			const { data } = await list_fn({
 				owner,
 				repo,
 				...fn_args
 			})
-			return data
+			if (!range_date) return data
+			return this.getListDataWithUnit(range_date, data)
 		} catch (e) {
 			console.error(e)
 		}
+	}
+
+	getListDataWithUnit(range_date: [string, string], data: any[]) {
+		return data
+			.map((item) => {
+				const change_date = dayjs(item.updated_at)
+				const [start_date, end_date] = [
+					dayjs(range_date[0]).startOf('day'),
+					dayjs(range_date[1]).endOf('day')
+				]
+				if (
+					change_date.isAfter(start_date) &&
+					change_date.isBefore(end_date)
+				) {
+					return item
+				}
+				return null
+			})
+			.filter((item) => item)
 	}
 }

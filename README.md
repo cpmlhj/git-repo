@@ -48,7 +48,13 @@ subscriptions:
 2. 设置环境变量：
 
 ```bash
+# GitHub API Token
 GITHUB_TOKEN=your_github_token
+
+# OpenAI配置
+OPENAI_API_KEY=your_openai_api_key    # OpenAI API密钥
+OPENAI_MODEL=gpt-4-turbo-preview      # 可选，默认使用gpt-4-turbo-preview
+OPENAI_BASE_URL=your_api_base_url     # 可选，自定义API基础URL
 ```
 
 ### 使用示例

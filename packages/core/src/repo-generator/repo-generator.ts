@@ -1,7 +1,10 @@
 import { GitHubEvent, GitHubEventType, LLMModelConfig } from '../types'
 import { OctokitGitHubClient } from '../github'
+import { Config } from '../config'
 import { OpenAIClient } from '@github-sentinel/llm'
 import { EventContentGenerators } from './events_outpus'
+import { format_date } from '../helpers/date-format'
+import { FrequencyStrategy } from '../subscription/frequency-strategies'
 import fs from 'fs'
 import path from 'path'
 
@@ -32,20 +35,27 @@ export class ReportGenerator {
 		owner: string
 		repo: string
 		eventTypes: Array<GitHubEventType>
-		period: 'daily' | 'weekly'
-		export?: {
-			output_dir: string
-		}
+		frequencyStrategy: FrequencyStrategy
+		export?: Config['exports']
+		range_date?: [string, string]
 	}): Promise<string> {
-		const date = new Date().toISOString().split('T')[0] + `__${Date.now()}`
-		const periodText = params.period === 'daily' ? '日报' : '周报'
+		const {
+			type,
+			name: periodText,
+			custom_date
+		} = params.frequencyStrategy.metaData
+		const since = params.frequencyStrategy.getDateRange()
 
 		// 添加详细事件信息
-		const { content, event_data } = await this.contentGenerators({
+		const { event_data } = await this.contentGenerators({
 			owner: params.owner,
 			repo: params.repo,
 			export_events: params.eventTypes,
-			period: params.period
+			since: since[0],
+			range_date:
+				type === 'custom'
+					? [custom_date!.start, custom_date!.end]
+					: undefined
 		})
 
 		// 生成 Markdown 格式的报告
@@ -54,23 +64,41 @@ export class ReportGenerator {
 		// 添加统计信息
 		report += this.generateStatistics(event_data)
 
-		// 添加详细事件信息
-		report += content
+		// // 添加详细事件信息
+		// report += content
+
 		// 生成AI分析总结
 		if (this.llmClient) {
 			report += await this.generateAISummary(event_data)
 		}
 
 		if (params.export) {
-			if (!fs.existsSync(params.export.output_dir)) {
-				fs.mkdirSync(params.export.output_dir, { recursive: true })
+			// 创建owner和repo的层级目录
+			const ownerDir = path.join(params.export.path, params.owner)
+			const repoDir = path.join(ownerDir, params.repo)
+			if (!fs.existsSync(repoDir)) {
+				fs.mkdirSync(repoDir, { recursive: true })
 			}
+
+			// 生成基础文件名（年月日格式）
+			const today = new Date()
+			const baseFileName = custom_date
+				? `${custom_date?.start}_${custom_date?.end}.md`
+				: format_date(today.toISOString()) + '.md'
+			let fileName = baseFileName
+			let counter = 1
+
+			// 处理文件名重复的情况
+			while (fs.existsSync(path.join(repoDir, fileName))) {
+				fileName = baseFileName.replace('.md', `-${counter}.md`)
+				counter++
+			}
+
 			// 导出 Markdown 文件
-			const fileName = `${params.owner}-${params.repo}-${date}.md`
-			const filePath = path.join(params.export.output_dir, fileName)
+			const filePath = path.join(repoDir, fileName)
 			fs.writeFileSync(filePath, report)
 		}
-		return report
+		return ''
 	}
 
 	/**
@@ -211,14 +239,16 @@ export class ReportGenerator {
 	async contentGenerators({
 		owner,
 		repo,
-		period = 'daily',
-		export_events = []
+		export_events = [],
+		since,
+		range_date
 	}: {
 		owner: string
 		repo: string
 		export_events: Array<GitHubEventType>
-		period: 'daily' | 'weekly'
+		since: string
 		outputDir?: string
+		range_date?: [string, string]
 	}) {
 		try {
 			const date = new Date().toISOString().split('T')[0]
@@ -228,8 +258,9 @@ export class ReportGenerator {
 				const data = await this.githubClient.clientListForEvent({
 					owner,
 					repo,
+					since,
 					eventType: event,
-					period
+					range_date
 				})
 				event_data[event] = data
 				const { title, generate } =

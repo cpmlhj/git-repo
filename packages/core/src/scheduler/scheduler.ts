@@ -6,7 +6,7 @@ import { SubscriptionManager } from '../subscription'
 import { NotificationSystem } from '../notification'
 import { SubscriptionConfig } from '../types'
 import { ReportGenerator } from '../repo-generator'
-import path from 'path'
+import { FrequencyStrategy } from '../subscription/frequency-strategies'
 
 /**
  * 定时调度器类
@@ -84,7 +84,10 @@ export class Scheduler {
 	 * 立即执行指定订阅的检查任务
 	 */
 	public async checkNow(subscription: SubscriptionConfig): Promise<void> {
-		await this.executeTask(subscription)
+		const Strategy = this.subscriptionManager.getStrategyForFrequency(
+			subscription.frequency
+		)
+		await this.executeTask(subscription, Strategy)
 	}
 
 	/**
@@ -94,24 +97,43 @@ export class Scheduler {
 		subscription: SubscriptionConfig
 	): Promise<void> {
 		const taskId = `${subscription.owner}/${subscription.repo}`
-		const cronExpression = this.getCronExpression(subscription.frequency)
+		const Strategy = this.subscriptionManager.getStrategyForFrequency(
+			subscription.frequency
+		)
 
 		if (this.tasks.has(taskId)) {
 			this.tasks.get(taskId)?.stop()
 			this.tasks.delete(taskId)
 		}
 
-		const task = cron.schedule(cronExpression, () => {
-			this.queue.add(() => this.executeTask(subscription))
-		})
+		const executeWrapper = () => {
+			const taskInfo = {
+				time: new Date().toISOString(),
+				subscription: `${subscription.owner}/${subscription.repo}`
+			}
+			console.log(`定时器执行:`, taskInfo)
 
-		this.tasks.set(taskId, task)
+			// 使用 weak reference 或在执行完成后清理
+			this.queue.add(async () => {
+				try {
+					await this.executeTask(subscription, Strategy)
+				} catch (error) {
+					console.error(`Task execution failed:`, error)
+				}
+			})
+		}
+
+		const task = Strategy.executionTime(executeWrapper)
+		if (task) this.tasks.set(taskId, task)
 	}
 
 	/**
 	 * 执行检查任务
 	 */
-	private async executeTask(subscription: SubscriptionConfig): Promise<void> {
+	private async executeTask(
+		subscription: SubscriptionConfig,
+		strategy: FrequencyStrategy
+	): Promise<void> {
 		const retryOptions = {
 			retries: 3,
 			onFailedAttempt: (error: any) => {
@@ -126,11 +148,9 @@ export class Scheduler {
 				const report = await this.reportGenerator.generateReport({
 					owner: subscription.owner,
 					repo: subscription.repo,
-					period: subscription.frequency,
+					frequencyStrategy: strategy,
 					eventTypes: subscription.eventTypes || [],
-					export: {
-						output_dir: path.resolve(process.cwd(), 'reports')
-					}
+					export: this.config.exports
 				})
 
 				if (this.config.notifications.email) {
@@ -161,12 +181,5 @@ export class Scheduler {
 				error
 			)
 		}
-	}
-
-	/**
-	 * 获取 Cron 表达式
-	 */
-	private getCronExpression(frequency: 'daily' | 'weekly'): string {
-		return frequency === 'daily' ? '0 9 * * *' : '0 9 * * 1'
 	}
 }

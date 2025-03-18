@@ -1,7 +1,17 @@
 import fs from 'fs/promises'
 import f from 'fs'
 import path from 'path'
-import { ISubscriptionManager, SubscriptionConfig } from '../types'
+import {
+	ISubscriptionManager,
+	SubscriptionConfig,
+	SubscriptionFrequency
+} from '../types'
+import {
+	DailyStrategy,
+	WeeklyStrategy,
+	CustomStrategy,
+	FrequencyStrategy
+} from './frequency-strategies'
 
 /**
  * 订阅管理器实现类
@@ -28,6 +38,21 @@ export class SubscriptionManager implements ISubscriptionManager {
 			await SubscriptionManager.instance.init()
 		}
 		return SubscriptionManager.instance
+	}
+
+	getStrategyForFrequency(
+		frequency: SubscriptionFrequency
+	): FrequencyStrategy {
+		switch (frequency.type) {
+			case 'daily':
+				return new DailyStrategy()
+			case 'weekly':
+				return new WeeklyStrategy()
+			case 'custom':
+				return new CustomStrategy(frequency.interval)
+			default:
+				throw new Error(`Unsupported frequency type: ${frequency}`)
+		}
 	}
 
 	/**
@@ -88,6 +113,18 @@ export class SubscriptionManager implements ISubscriptionManager {
 	 */
 	async getSubscriptions(): Promise<SubscriptionConfig[]> {
 		return this.subscriptions
+	}
+
+	/**
+	 * 更新订阅信息
+	 */
+	async updateSubscription(
+		repo: string,
+		updateConfig: Partial<SubscriptionConfig>
+	) {
+		const targetRepo = this.subscriptions.find((sub) => sub.repo === repo)
+		targetRepo && Object.assign(targetRepo, updateConfig)
+		await this.saveSubscriptions()
 	}
 
 	/**
