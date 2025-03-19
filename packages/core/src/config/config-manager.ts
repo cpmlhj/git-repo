@@ -116,11 +116,13 @@ export class ConfigManager {
 		}
 		return {
 			githubToken: process.env.GITHUB_TOKEN || '',
-			llm: {
-				apiKey: process.env.OPENAI_API_KEY || '',
-				baseURL: process.env.OPENAI_BASE_URL || '',
-				model: process.env.OPENAI_MODEL
-			},
+			llm: process.env.OPENAI_API_KEY
+				? {
+						apiKey: process.env.OPENAI_API_KEY || '',
+						baseURL: process.env.OPENAI_BASE_URL || '',
+						model: process.env.OPENAI_MODEL
+					}
+				: undefined,
 			notifications: {
 				email: yamlConfig?.notifications?.email || {
 					host: process.env.SMTP_HOST,
@@ -145,7 +147,10 @@ export class ConfigManager {
 						'pull_requests',
 						'releases'
 					]) as Array<
-					'issues' | 'pull_requests' | 'releases' | 'discussions'
+					| 'issues'
+					| 'pull_requests'
+					| 'releases'
+					| 'discussions'
 				>
 			},
 			httpsProxy: process.env.HTTPS_PROXY,

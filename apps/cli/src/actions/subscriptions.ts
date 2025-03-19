@@ -38,14 +38,16 @@ function isValidDateString(dateString: string): boolean {
 }
 
 export class Subscriptions {
+	private static proxyAgent: HttpsProxyAgent<string> | undefined
 	private static async getInstances(args?: any) {
 		const { proxy, filePath } = args || {}
 		const config = ConfigManager.getInstance()
 		const notification = new NotificationSystem()
 		const subscriptionManager = await SubscriptionManager.getInstance()
-		let proxyAgent
 		if (proxy || process.env.proxy) {
-			proxyAgent = new HttpsProxyAgent(proxy || process.env.proxy)
+			Subscriptions.proxyAgent = new HttpsProxyAgent(
+				proxy || process.env.proxy
+			)
 		}
 
 		if (filePath) {
@@ -55,14 +57,7 @@ export class Subscriptions {
 				show_export: true
 			})
 		}
-		const scheduler = Scheduler.getInstance(
-			subscriptionManager,
-			notification,
-			config,
-			proxyAgent
-		)
 		return {
-			scheduler,
 			config,
 			notification,
 			subscriptionManager
@@ -105,14 +100,15 @@ export class Subscriptions {
 			owner: answers.owner,
 			repo: answers.repo,
 			frequency: { type: answers.frequency },
-			eventTypes: answers.eventTypes as SubscriptionConfig['eventTypes']
+			eventTypes:
+				answers.eventTypes as SubscriptionConfig['eventTypes']
 		})
 
 		console.log('订阅成功！')
 	}
 
 	public static async list() {
-		const { subscriptionManager } = await this.getInstances()
+		const { subscriptionManager } = await Subscriptions.getInstances()
 		const subscriptions = await subscriptionManager.getSubscriptions()
 
 		if (subscriptions.length === 0) {
@@ -159,8 +155,14 @@ export class Subscriptions {
 	}
 
 	public static async check(args: any) {
-		const { subscriptionManager, scheduler } =
+		const { subscriptionManager, notification, config } =
 			await Subscriptions.getInstances(args)
+		const scheduler = Scheduler.getInstance(
+			subscriptionManager,
+			notification,
+			config,
+			Subscriptions.proxyAgent
+		)
 		const { rangeTime } = args
 		const subscriptions = await subscriptionManager.getSubscriptions()
 
@@ -208,11 +210,14 @@ export class Subscriptions {
 
 		// 执行完毕，恢复频率
 		if (pre_frequency_type) {
-			await subscriptionManager.updateSubscription(subscription.repo, {
-				...subscription,
-				// @ts-ignore
-				frequency: { type: pre_frequency_type }
-			})
+			await subscriptionManager.updateSubscription(
+				subscription.repo,
+				{
+					...subscription,
+					// @ts-ignore
+					frequency: { type: pre_frequency_type }
+				}
+			)
 		}
 	}
 

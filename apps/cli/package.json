@@ -3,6 +3,9 @@
 	"version": "0.1.0",
 	"private": true,
 	"main": "dist/index.js",
+	"bin": {
+		"github-sentinel": "dist/index.js"
+	},
 	"scripts": {
 		"build": "tsup",
 		"dev": "tsup --watch",

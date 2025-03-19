@@ -43,7 +43,8 @@ export class OctokitGitHubClient implements IGitHubClient {
 			})
 			if (since) {
 				return data.filter(
-					(event) => new Date(event.created_at || '') >= since
+					(event) =>
+						new Date(event.created_at || '') >= since
 				)
 			}
 
@@ -99,7 +100,7 @@ export class OctokitGitHubClient implements IGitHubClient {
 		eventType,
 		since,
 		state = 'closed', // 默认获取已关闭的问题
-		per_page = 3, // 默认20条
+		per_page = 20, // 默认20条
 		page = 1,
 		range_date
 	}: {
@@ -166,7 +167,6 @@ export class OctokitGitHubClient implements IGitHubClient {
 				throw new Error(`Unsupported event type: ${eventType}`)
 		}
 		try {
-			console.log(fn_args, '这是什么呢', range_date)
 			const { data } = await list_fn({
 				owner,
 				repo,

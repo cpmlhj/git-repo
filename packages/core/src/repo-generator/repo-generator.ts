@@ -98,7 +98,7 @@ export class ReportGenerator {
 			const filePath = path.join(repoDir, fileName)
 			fs.writeFileSync(filePath, report)
 		}
-		return ''
+		return report
 	}
 
 	/**
