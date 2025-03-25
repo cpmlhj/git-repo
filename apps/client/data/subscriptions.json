@@ -1,0 +1,13 @@
+[
+  {
+    "owner": "langchain-ai",
+    "repo": "langchain",
+    "frequency": {
+      "type": "daily"
+    },
+    "eventTypes": [
+      "IssuesEvent",
+      "PullRequestEvent"
+    ]
+  }
+]
