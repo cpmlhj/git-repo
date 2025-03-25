@@ -135,6 +135,8 @@ const DiscussionEvent: EventContentGenerator = {
 	generate: () => '暂不支持讨论事件的展示\n\n'
 }
 
+export const EXPORT_CHUNK_FINISHED = '@report_chunk_finish'
+
 export const EventContentGenerators = {
 	IssuesEvent,
 	PullRequestEvent,

@@ -1,13 +1,12 @@
 import {
-	SubscriptionManager,
 	ConfigManager,
 	SubscriptionConfig,
 	Scheduler,
-	NotificationSystem,
-	GitHubEventType
+	GitHubEventType,
+	getSubscriptionManager,
+	ReportService
 } from '@github-analytics/core'
 import inquirer from 'inquirer'
-import { HttpsProxyAgent } from 'https-proxy-agent'
 import { resolve } from 'path'
 
 interface SubscriptionAnswers {
@@ -38,16 +37,24 @@ function isValidDateString(dateString: string): boolean {
 }
 
 export class Subscriptions {
-	private static proxyAgent: HttpsProxyAgent<string> | undefined
 	private static async getInstances(args?: any) {
-		const { proxy, filePath } = args || {}
+		// 更新配置
+		Subscriptions.updateConfig(args)
+		const scheduler = Scheduler.getInstance()
+		const subscriptionManager = await getSubscriptionManager()
+		const reportService = ReportService.getInstance()
+		return {
+			subscriptionManager,
+			reportService,
+			scheduler
+		}
+	}
+
+	static updateConfig(args: any) {
 		const config = ConfigManager.getInstance()
-		const notification = new NotificationSystem()
-		const subscriptionManager = await SubscriptionManager.getInstance()
+		const { proxy, filePath } = args || {}
 		if (proxy || process.env.proxy) {
-			Subscriptions.proxyAgent = new HttpsProxyAgent(
-				proxy || process.env.proxy
-			)
+			config.setConfig('httpsProxy', proxy || process.env.proxy)
 		}
 
 		if (filePath) {
@@ -56,11 +63,6 @@ export class Subscriptions {
 				path: export_file_path,
 				show_export: true
 			})
-		}
-		return {
-			config,
-			notification,
-			subscriptionManager
 		}
 	}
 
@@ -155,14 +157,8 @@ export class Subscriptions {
 	}
 
 	public static async check(args: any) {
-		const { subscriptionManager, notification, config } =
+		const { subscriptionManager, reportService } =
 			await Subscriptions.getInstances(args)
-		const scheduler = Scheduler.getInstance(
-			subscriptionManager,
-			notification,
-			config,
-			Subscriptions.proxyAgent
-		)
 		const { rangeTime } = args
 		const subscriptions = await subscriptionManager.getSubscriptions()
 
@@ -206,7 +202,15 @@ export class Subscriptions {
 				_subscription
 			)
 		}
-		await scheduler.checkNow(_subscription)
+
+		reportService.generateNow(_subscription, (chunk) => {
+			if (typeof chunk === 'string') {
+				process.stdout.write(chunk)
+			} else {
+				const { content } = chunk
+				process.stdout.write(content)
+			}
+		})
 
 		// 执行完毕，恢复频率
 		if (pre_frequency_type) {

@@ -1,16 +1,17 @@
-import { GitHubEvent, GitHubEventType, LLMModelConfig } from '../types'
+import { GitHubEvent, GitHubEventType } from '../types'
 import { OctokitGitHubClient } from '../github'
 import { Config } from '../config'
-import { OpenAIClient } from '@github-sentinel/llm'
-import { EventContentGenerators } from './events_outpus'
-import { format_date } from '../helpers/date-format'
+import {
+	OpenAIClient,
+	StreamResponse,
+	ChatResponse
+} from '@github-sentinel/llm'
+import { EventContentGenerators, EXPORT_CHUNK_FINISHED } from './events_outpus'
 import { FrequencyStrategy } from '../subscription/frequency-strategies'
-import fs from 'fs'
-import path from 'path'
+import { GenerationEventEmitter } from '../events'
 
 interface ReportGeneratorConfig {
 	githubToken: string
-	openaiConfig?: LLMModelConfig
 }
 
 /**
@@ -21,11 +22,12 @@ export class ReportGenerator {
 
 	private githubClient: OctokitGitHubClient
 
+	private eventEmitter: GenerationEventEmitter
+
 	constructor(config: ReportGeneratorConfig) {
-		if (config.openaiConfig) {
-			this.llmClient = new OpenAIClient(config.openaiConfig)
-		}
+		this.llmClient = new OpenAIClient()
 		this.githubClient = new OctokitGitHubClient(config.githubToken)
+		this.eventEmitter = GenerationEventEmitter.getInstance()
 	}
 
 	/**
@@ -46,8 +48,7 @@ export class ReportGenerator {
 		} = params.frequencyStrategy.metaData
 		const since = params.frequencyStrategy.getDateRange()
 
-		// 添加详细事件信息
-		const { event_data } = await this.contentGenerators({
+		const { event_data, content } = await this.contentGenerators({
 			owner: params.owner,
 			repo: params.repo,
 			export_events: params.eventTypes,
@@ -64,41 +65,100 @@ export class ReportGenerator {
 		// 添加统计信息
 		report += this.generateStatistics(event_data)
 
-		// // 添加详细事件信息
-		// report += content
+		// 添加详细事件信息 -- 不使用AI分析
+		if (!this.llmClient) {
+			report += content
+		}
 
 		// 生成AI分析总结
 		if (this.llmClient) {
 			report += await this.generateAISummary(event_data)
 		}
-
-		if (params.export) {
-			// 创建owner和repo的层级目录
-			const ownerDir = path.join(params.export.path, params.owner)
-			const repoDir = path.join(ownerDir, params.repo)
-			if (!fs.existsSync(repoDir)) {
-				fs.mkdirSync(repoDir, { recursive: true })
-			}
-
-			// 生成基础文件名（年月日格式）
-			const today = new Date()
-			const baseFileName = custom_date
-				? `${custom_date?.start}_${custom_date?.end}.md`
-				: format_date(today.toISOString()) + '.md'
-			let fileName = baseFileName
-			let counter = 1
-
-			// 处理文件名重复的情况
-			while (fs.existsSync(path.join(repoDir, fileName))) {
-				fileName = baseFileName.replace('.md', `-${counter}.md`)
-				counter++
-			}
-
-			// 导出 Markdown 文件
-			const filePath = path.join(repoDir, fileName)
-			fs.writeFileSync(filePath, report)
-		}
 		return report
+	}
+
+	/**
+	 * 流式生成报告
+	 */
+	public async generateReportStream(params: {
+		owner: string
+		repo: string
+		eventTypes: Array<GitHubEventType>
+		frequencyStrategy: FrequencyStrategy
+		emitter: (chunk: any) => void
+		export?: Config['exports']
+		range_date?: [string, string]
+	}) {
+		const taskId = `${params.owner}/${params.repo}`
+		if (this.eventEmitter.hasTask(taskId)) {
+			throw new Error(`Task: ${taskId} already exists`)
+		}
+		const {
+			type,
+			name: periodText,
+			custom_date
+		} = params.frequencyStrategy.metaData
+		const since = params.frequencyStrategy.getDateRange()
+
+		const unsubscribe = this.eventEmitter.onGeneration(
+			taskId,
+			params.emitter
+		)
+
+		// 添加详细事件信息
+		const { event_data } = await this.contentGenerators({
+			owner: params.owner,
+			repo: params.repo,
+			export_events: params.eventTypes,
+			since: since[0],
+			range_date:
+				type === 'custom'
+					? [custom_date!.start, custom_date!.end]
+					: undefined
+		})
+		let repoprt = ''
+		// 生成 Markdown 格式的报告
+		const title = `# GitHub 仓库 ${params.owner}/${params.repo} ${periodText}\n\n`
+
+		this.eventEmitter.emitGenerationEvent({
+			taskId,
+			content: title,
+			type: 'chunk'
+		})
+		repoprt += title
+		// 添加统计信息
+		const Statistics = this.generateStatistics(event_data)
+
+		this.eventEmitter.emitGenerationEvent({
+			taskId,
+			content: Statistics,
+			type: 'chunk'
+		})
+		repoprt += Statistics
+		// 生成AI分析总结
+		if (this.llmClient) {
+			for await (const chunk of this.generateAISummaryStream(
+				event_data
+			)) {
+				if (chunk === EXPORT_CHUNK_FINISHED) {
+					this.eventEmitter.emitGenerationEvent({
+						taskId,
+						content: '',
+						type: 'complete'
+					})
+					// 结束监听
+					unsubscribe && unsubscribe()
+					return repoprt
+				} else {
+					this.eventEmitter.emitGenerationEvent({
+						taskId,
+						content: chunk,
+						type: 'chunk'
+					})
+				}
+				repoprt += chunk
+			}
+		}
 	}
 
 	/**
@@ -130,8 +190,12 @@ export class ReportGenerator {
 			const issuesPrompt = this.generateIssuesPrompt(
 				eventsByType['IssuesEvent']
 			)
-			const issuesAnalysis = await this.llmClient?.complete(issuesPrompt)
-			summary += '### Issues 分析\n\n' + issuesAnalysis?.content + '\n\n'
+			const issuesAnalysis =
+				await this.llmClient?.complete(issuesPrompt)
+			summary +=
+				'### Issues 分析\n\n' +
+				(issuesAnalysis as ChatResponse)?.content +
+				'\n\n'
 		}
 
 		// 处理Pull Requests
@@ -141,10 +205,57 @@ export class ReportGenerator {
 			)
 			const prAnalysis = await this.llmClient?.complete(prPrompt)
 			summary +=
-				'### Pull Requests 分析\n\n' + prAnalysis?.content + '\n\n'
+				'### Pull Requests 分析\n\n' +
+				(prAnalysis as ChatResponse)?.content +
+				'\n\n'
 		}
 
 		return summary
+	}
+
+	/**
+	 * 流式生成AI分析总结
+	 */
+	private async *generateAISummaryStream(
+		eventsByType: Partial<Record<GitHubEventType, any>>
+	): AsyncGenerator<string> {
+		yield '## AI 分析总结\n\n'
+
+		// 处理Issues
+		if (eventsByType['IssuesEvent']) {
+			const issuesPrompt = this.generateIssuesPrompt(
+				eventsByType['IssuesEvent']
+			)
+			yield '### Issues 分析\n\n'
+			const issuesStream = await this.llmClient?.complete(
+				issuesPrompt,
+				true
+			)
+			if (issuesStream) {
+				for await (const chunk of issuesStream as StreamResponse) {
+					yield chunk.choices[0].delta.content || ''
+				}
+			}
+		}
+
+		// 处理Pull Requests
+		if (eventsByType['PullRequestEvent']) {
+			const prPrompt = this.generatePullRequestsPrompt(
+				eventsByType['PullRequestEvent']
+			)
+			yield '### Pull Requests 分析\n\n'
+			const prStream = await this.llmClient?.complete(
+				prPrompt,
+				true
+			)
+			if (prStream) {
+				for await (const chunk of prStream as StreamResponse) {
+					yield chunk.choices[0].delta.content || ''
+				}
+			}
+		}
+
+		yield EXPORT_CHUNK_FINISHED
 	}
 
 	/**
@@ -160,7 +271,9 @@ export class ReportGenerator {
 					created_at: event.created_at,
 					updated_at: event.updated_at,
 					comments: event.comments,
-					labels: event.labels?.map((label: any) => label.name),
+					labels: event.labels?.map(
+						(label: any) => label.name
+					),
 					author_type: event.author_association,
 					is_pr: !!pull_request,
 					merged_at: pull_request?.merged_at,
@@ -216,24 +329,6 @@ export class ReportGenerator {
 	}
 
 	/**
-	 * 格式化动作描述
-	 */
-	private formatAction(action: string): string {
-		const actionMap: Record<string, string> = {
-			opened: '创建',
-			closed: '关闭',
-			reopened: '重新打开',
-			edited: '编辑',
-			merged: '合并',
-			published: '发布',
-			created: '创建',
-			deleted: '删除',
-			commented: '评论'
-		}
-		return actionMap[action] || action
-	}
-
-	/**
 	 * 导出仓库的issues和pull requests列表为Markdown文件
 	 */
 	async contentGenerators({
@@ -255,13 +350,15 @@ export class ReportGenerator {
 			let content = `# ${owner}/${repo} 仓库报告 (${date})\n\n`
 			const event_data: Partial<Record<GitHubEventType, any>> = {}
 			for (const event of export_events) {
-				const data = await this.githubClient.clientListForEvent({
-					owner,
-					repo,
-					since,
-					eventType: event,
-					range_date
-				})
+				const data = await this.githubClient.clientListForEvent(
+					{
+						owner,
+						repo,
+						since,
+						eventType: event,
+						range_date
+					}
+				)
 				event_data[event] = data
 				const { title, generate } =
 					EventContentGenerators[
@@ -274,7 +371,7 @@ export class ReportGenerator {
 				event_data
 			}
 		} catch (e) {
-			console.error('导出Markdown文件时发生错误:', e)
+			console.error('生成报告时发生错误:', e)
 			throw e
 		}
 	}

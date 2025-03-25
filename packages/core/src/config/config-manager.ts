@@ -2,7 +2,7 @@ import dotenv from 'dotenv'
 import { parse } from 'yaml'
 import { readFileSync } from 'fs'
 import { resolve, isAbsolute } from 'path'
-import { LLMModelConfig } from '../types'
+import { Model } from '../types'
 
 /**
  * 配置项接口
@@ -33,16 +33,12 @@ export interface Config {
 	}
 	/** 订阅配置 */
 	subscriptions: {
-		/** 默认更新频率 */
-		defaultFrequency: 'daily' | 'weekly'
-		/** 默认关注的事件类型 */
-		defaultEventTypes: Array<
-			'issues' | 'pull_requests' | 'releases' | 'discussions'
-		>
+		/** 保存路径 */
+		save_path: string
 	}
 	httpsProxy?: string
 	// llm 配置
-	llm?: Omit<LLMModelConfig, 'maxTokens' | 'temperature'>
+	llm: Model
 	// export file
 	exports?: {
 		/** 导出文件路径 */
@@ -86,6 +82,33 @@ export class ConfigManager {
 		this.config[key] = value
 	}
 
+	public getModelConfig(): Config['llm'] {
+		const {
+			OPENAI_API_KEY,
+			OPENAI_BASE_URL,
+			OPENAI_MODEL,
+			OLLAMA_URL,
+			OLLAMA_MODEL
+		} = process.env
+		if (!OPENAI_API_KEY && !OLLAMA_URL) {
+			throw new Error('请配置 OPENAI_API_KEY 或 OLLAMA_URL')
+		}
+		if (OPENAI_API_KEY) {
+			return {
+				apiKey: OPENAI_API_KEY,
+				model: OPENAI_MODEL || 'gpt-4-turbo-preview',
+				baseUrl: OPENAI_BASE_URL || undefined
+			}
+		}
+		if (OLLAMA_URL) {
+			return {
+				baseUrl: OLLAMA_URL,
+				model: OLLAMA_MODEL || 'mistral'
+			}
+		}
+		throw new Error('未配置 OPENAI_API_KEY 或 OLLAMA_URL')
+	}
+
 	/**
 	 * 加载配置
 	 */
@@ -116,13 +139,7 @@ export class ConfigManager {
 		}
 		return {
 			githubToken: process.env.GITHUB_TOKEN || '',
-			llm: process.env.OPENAI_API_KEY
-				? {
-						apiKey: process.env.OPENAI_API_KEY || '',
-						baseURL: process.env.OPENAI_BASE_URL || '',
-						model: process.env.OPENAI_MODEL
-					}
-				: undefined,
+			llm: this.getModelConfig(),
 			notifications: {
 				email: yamlConfig?.notifications?.email || {
 					host: process.env.SMTP_HOST,
@@ -136,24 +153,11 @@ export class ConfigManager {
 				}
 			},
 			subscriptions: {
-				defaultFrequency: (yamlConfig?.subscriptions
-					?.defaultFrequency ||
-					process.env.DEFAULT_FREQUENCY ||
-					'daily') as 'daily' | 'weekly',
-				defaultEventTypes: (yamlConfig?.subscriptions
-					?.defaultEventTypes ||
-					process.env.DEFAULT_EVENT_TYPES?.split(',') || [
-						'issues',
-						'pull_requests',
-						'releases'
-					]) as Array<
-					| 'issues'
-					| 'pull_requests'
-					| 'releases'
-					| 'discussions'
-				>
+				save_path:
+					yamlConfig?.subscriptions?.save_path ||
+					resolve(process.cwd(), 'subscriptions')
 			},
-			httpsProxy: process.env.HTTPS_PROXY,
+			httpsProxy: process.env.proxy,
 			exports: yamlConfig?.exports || undefined
 		}
 	}

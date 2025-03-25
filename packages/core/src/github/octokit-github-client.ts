@@ -1,11 +1,7 @@
+// @ts-ignore
 import { Octokit } from '@octokit/rest'
-import {
-	GitHubEventType,
-	IGitHubClient,
-	GithubIssuesState,
-	GithubRepoListSince
-} from '../types'
-import { format_range_date, returnISOString } from '../helpers/date-format'
+import { GitHubEventType, IGitHubClient, GithubIssuesState } from '../types'
+import { returnISOString } from '../helpers/date-format'
 import dayjs from 'dayjs'
 /**
  * 基于Octokit的GitHub API客户端实现
@@ -100,7 +96,7 @@ export class OctokitGitHubClient implements IGitHubClient {
 		eventType,
 		since,
 		state = 'closed', // 默认获取已关闭的问题
-		per_page = 20, // 默认20条
+		per_page = 2, // 默认20条
 		page = 1,
 		range_date
 	}: {

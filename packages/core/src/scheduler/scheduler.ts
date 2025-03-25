@@ -1,12 +1,13 @@
 import cron from 'node-cron'
+//@ts-ignore
 import PQueue from 'p-queue'
+//@ts-ignore
 import pRetry from 'p-retry'
 import { Config, ConfigManager } from '../config'
 import { SubscriptionManager } from '../subscription'
 import { NotificationSystem } from '../notification'
 import { SubscriptionConfig } from '../types'
-import { ReportGenerator } from '../repo-generator'
-import { FrequencyStrategy } from '../subscription/frequency-strategies'
+import { ReportService } from '../repo-generator/report-service'
 
 /**
  * 定时调度器类
@@ -17,25 +18,15 @@ export class Scheduler {
 	private subscriptionManager: SubscriptionManager
 	private notificationSystem: NotificationSystem
 	private config: Config
-	private reportGenerator: ReportGenerator
+	private reportService: ReportService
 	private queue: PQueue
 
-	private constructor(
-		subscriptionManager: SubscriptionManager,
-		notificationSystem: NotificationSystem,
-		config: ConfigManager,
-		proxyAgent?: any
-	) {
+	private constructor() {
 		this.tasks = new Map()
-		this.subscriptionManager = subscriptionManager
-		this.notificationSystem = notificationSystem
-		this.config = config.getConfig()
-		this.reportGenerator = new ReportGenerator({
-			githubToken: this.config.githubToken,
-			openaiConfig: this.config.llm
-				? Object.assign(this.config.llm, { proxyAgent })
-				: undefined
-		})
+		this.subscriptionManager = SubscriptionManager.getInstance()
+		this.notificationSystem = new NotificationSystem()
+		this.config = ConfigManager.getInstance().getConfig()
+		this.reportService = ReportService.getInstance()
 		// 初始化队列，限制并发数为3
 		this.queue = new PQueue({ concurrency: 3 })
 	}
@@ -43,19 +34,9 @@ export class Scheduler {
 	/**
 	 * 获取调度器实例
 	 */
-	public static getInstance(
-		subscriptionManager: SubscriptionManager,
-		notificationSystem: NotificationSystem,
-		config: ConfigManager,
-		proxyAgent?: any
-	): Scheduler {
+	public static getInstance(): Scheduler {
 		if (!Scheduler.instance) {
-			Scheduler.instance = new Scheduler(
-				subscriptionManager,
-				notificationSystem,
-				config,
-				proxyAgent
-			)
+			Scheduler.instance = new Scheduler()
 		}
 		return Scheduler.instance
 	}
@@ -64,7 +45,9 @@ export class Scheduler {
 	 * 启动调度器
 	 */
 	public async start(): Promise<void> {
-		const subscriptions = await this.subscriptionManager.getSubscriptions()
+		await this.subscriptionManager.init()
+		const subscriptions =
+			await this.subscriptionManager.getSubscriptions()
 		for (const subscription of subscriptions) {
 			await this.scheduleTask(subscription)
 		}
@@ -81,16 +64,6 @@ export class Scheduler {
 	}
 
 	/**
-	 * 立即执行指定订阅的检查任务
-	 */
-	public async checkNow(subscription: SubscriptionConfig): Promise<void> {
-		const Strategy = this.subscriptionManager.getStrategyForFrequency(
-			subscription.frequency
-		)
-		await this.executeTask(subscription, Strategy)
-	}
-
-	/**
 	 * 为订阅创建定时任务
 	 */
 	private async scheduleTask(
@@ -100,7 +73,6 @@ export class Scheduler {
 		const Strategy = this.subscriptionManager.getStrategyForFrequency(
 			subscription.frequency
 		)
-
 		if (this.tasks.has(taskId)) {
 			this.tasks.get(taskId)?.stop()
 			this.tasks.delete(taskId)
@@ -116,7 +88,7 @@ export class Scheduler {
 			// 使用 weak reference 或在执行完成后清理
 			this.queue.add(async () => {
 				try {
-					await this.executeTask(subscription, Strategy)
+					await this.executeTask(subscription)
 				} catch (error) {
 					console.error(`Task execution failed:`, error)
 				}
@@ -131,8 +103,7 @@ export class Scheduler {
 	 * 执行检查任务
 	 */
 	private async executeTask(
-		subscription: SubscriptionConfig,
-		strategy: FrequencyStrategy
+		subscription: SubscriptionConfig
 	): Promise<void> {
 		const retryOptions = {
 			retries: 3,
@@ -145,35 +116,29 @@ export class Scheduler {
 		}
 		try {
 			await pRetry(async () => {
-				const report = await this.reportGenerator.generateReport({
-					owner: subscription.owner,
-					repo: subscription.repo,
-					frequencyStrategy: strategy,
-					eventTypes: subscription.eventTypes || [],
-					export: this.config.exports
-				})
+				await this.reportService.generateReport(subscription)
 
-				if (this.config.notifications.email) {
-					await this.notificationSystem.sendNotification(
-						{
-							type: 'email',
-							target: this.config.notifications.email.from
-						},
-						report
-					)
-				}
-				if (
-					this.config.notifications.webhook &&
-					this.config.notifications.webhook.url
-				) {
-					await this.notificationSystem.sendNotification(
-						{
-							type: 'webhook',
-							target: this.config.notifications.webhook.url
-						},
-						report
-					)
-				}
+				// if (this.config.notifications.email) {
+				// 	await this.notificationSystem.sendNotification(
+				// 		{
+				// 			type: 'email',
+				// 			target: this.config.notifications.email.from
+				// 		},
+				// 		report
+				// 	)
+				// }
+				// if (
+				// 	this.config.notifications.webhook &&
+				// 	this.config.notifications.webhook.url
+				// ) {
+				// 	await this.notificationSystem.sendNotification(
+				// 		{
+				// 			type: 'webhook',
+				// 			target: this.config.notifications.webhook.url
+				// 		},
+				// 		report
+				// 	)
+				// }
 			}, retryOptions)
 		} catch (error) {
 			console.error(

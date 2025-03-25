@@ -1,0 +1,18 @@
+[
+	{
+		"owner": "langchain-ai",
+		"repo": "langchain",
+		"frequency": {
+			"type": "daily"
+		},
+		"eventTypes": ["IssuesEvent"]
+	},
+	{
+		"owner": "facebook",
+		"repo": "react",
+		"frequency": {
+			"type": "daily"
+		},
+		"eventTypes": ["IssuesEvent", "PullRequestEvent"]
+	}
+]

@@ -6,6 +6,7 @@ import {
 	SubscriptionConfig,
 	SubscriptionFrequency
 } from '../types'
+import { Config, ConfigManager } from '../config'
 import {
 	DailyStrategy,
 	WeeklyStrategy,
@@ -20,22 +21,20 @@ export class SubscriptionManager implements ISubscriptionManager {
 	private subscriptionsFile: string
 	private subscriptions: SubscriptionConfig[]
 
+	private config: Config
+
 	private static instance: SubscriptionManager
 
-	constructor(storageDir?: string) {
-		const dir =
-			path.resolve(process.cwd(), 'data') || storageDir || './data'
+	constructor() {
+		this.config = ConfigManager.getInstance().getConfig()
+		const dir = this.config.subscriptions.save_path
 		this.subscriptionsFile = path.join(dir, 'subscriptions.json')
 		this.subscriptions = []
 	}
 
-	static async getInstance(
-		storageDir?: string
-	): Promise<SubscriptionManager> {
+	static getInstance() {
 		if (!SubscriptionManager.instance) {
-			SubscriptionManager.instance = new SubscriptionManager(storageDir)
-			// 初始化订阅管理器
-			await SubscriptionManager.instance.init()
+			SubscriptionManager.instance = new SubscriptionManager()
 		}
 		return SubscriptionManager.instance
 	}
@@ -51,7 +50,9 @@ export class SubscriptionManager implements ISubscriptionManager {
 			case 'custom':
 				return new CustomStrategy(frequency.interval)
 			default:
-				throw new Error(`Unsupported frequency type: ${frequency}`)
+				throw new Error(
+					`Unsupported frequency type: ${frequency}`
+				)
 		}
 	}
 
@@ -68,7 +69,10 @@ export class SubscriptionManager implements ISubscriptionManager {
 			}
 
 			try {
-				const data = await fs.readFile(this.subscriptionsFile, 'utf-8')
+				const data = await fs.readFile(
+					this.subscriptionsFile,
+					'utf-8'
+				)
 				this.subscriptions = JSON.parse(data)
 				console.log(`初始化订阅管理器成功`)
 			} catch (error) {
@@ -86,7 +90,8 @@ export class SubscriptionManager implements ISubscriptionManager {
 	 */
 	async addSubscription(config: SubscriptionConfig): Promise<void> {
 		const existingIndex = this.subscriptions.findIndex(
-			(sub) => sub.owner === config.owner && sub.repo === config.repo
+			(sub) =>
+				sub.owner === config.owner && sub.repo === config.repo
 		)
 
 		if (existingIndex !== -1) {
@@ -122,7 +127,9 @@ export class SubscriptionManager implements ISubscriptionManager {
 		repo: string,
 		updateConfig: Partial<SubscriptionConfig>
 	) {
-		const targetRepo = this.subscriptions.find((sub) => sub.repo === repo)
+		const targetRepo = this.subscriptions.find(
+			(sub) => sub.repo === repo
+		)
 		targetRepo && Object.assign(targetRepo, updateConfig)
 		await this.saveSubscriptions()
 	}
@@ -137,4 +144,10 @@ export class SubscriptionManager implements ISubscriptionManager {
 			'utf-8'
 		)
 	}
+}
+
+export async function getSubscriptionManager() {
+	const manager = SubscriptionManager.getInstance()
+	await manager.init()
+	return manager
 }

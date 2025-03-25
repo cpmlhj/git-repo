@@ -1,3 +1,4 @@
+// @ts-ignore
 import { RestEndpointMethodTypes } from '@octokit/rest'
 
 /**
@@ -95,18 +96,12 @@ export interface IGitHubClient {
  */
 export interface INotificationSystem {
 	/** 发送通知 */
-	sendNotification(config: NotificationConfig, content: string): Promise<void>
+	sendNotification(
+		config: NotificationConfig,
+		content: string
+	): Promise<void>
 	/** 添加通知配置 */
 	addNotificationConfig(config: NotificationConfig): Promise<void>
 	/** 移除通知配置 */
 	removeNotificationConfig(type: string, target: string): Promise<void>
-}
-
-export interface LLMModelConfig {
-	apiKey: string
-	model?: string
-	baseURL?: string
-	maxTokens?: number
-	temperature?: number
-	proxyAgent?: any
 }

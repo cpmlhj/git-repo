@@ -10,13 +10,15 @@
 		"test": "jest"
 	},
 	"dependencies": {
-		"openai": "^4.0.0"
+		"https-proxy-agent": "^7.0.6",
+		"openai": "^4.0.0",
+		"@github-analytics/core": "workspace:*"
 	},
 	"devDependencies": {
+		"@types/jest": "^29.0.0",
 		"@types/node": "^18.0.0",
-		"typescript": "^5.0.0",
-		"tsup": "^7.0.0",
 		"jest": "^29.0.0",
-		"@types/jest": "^29.0.0"
+		"tsup": "^7.0.0",
+		"typescript": "^5.0.0"
 	}
 }
