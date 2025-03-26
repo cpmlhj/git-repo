@@ -41,7 +41,7 @@ export class ReportGenerator {
 		frequencyStrategy: FrequencyStrategy
 		export?: Config['exports']
 		range_date?: [string, string]
-	}): Promise<string> {
+	}): Promise<{ report: string; title: string }> {
 		const {
 			type,
 			name: periodText,
@@ -59,9 +59,9 @@ export class ReportGenerator {
 					? [custom_date!.start, custom_date!.end]
 					: undefined
 		})
-
+		const title = `# GitHub 仓库 ${params.owner}/${params.repo} ${periodText}\n\n`
 		// 生成 Markdown 格式的报告
-		let report = `# GitHub 仓库 ${params.owner}/${params.repo} ${periodText}\n\n`
+		let report = title
 
 		// 添加统计信息
 		report += this.generateStatistics(event_data)
@@ -75,7 +75,10 @@ export class ReportGenerator {
 		if (this.llmClient) {
 			report += await this.generateAISummary(event_data)
 		}
-		return report
+		return {
+			report,
+			title
+		}
 	}
 
 	/**

@@ -11,6 +11,7 @@ import { ReportService } from '../repo-generator/report-service'
 import { logger } from '../helpers/logger'
 import { format_date } from '../helpers/date-format'
 import path from 'path'
+import mki from 'markdown-it'
 
 const signals = ['SIGINT', 'SIGTERM', 'SIGUSR1', 'SIGUSR2']
 
@@ -157,6 +158,7 @@ export class Scheduler {
 	private async executeTask(
 		subscription: SubscriptionConfig
 	): Promise<void> {
+		const config = this.configManager.getConfig()
 		const retryOptions = {
 			retries: 3,
 			onFailedAttempt: (error: any) => {
@@ -168,29 +170,39 @@ export class Scheduler {
 		}
 		try {
 			await pRetry(async () => {
-				await this.reportService.generateReport(subscription)
-
-				// if (this.config.notifications.email) {
-				// 	await this.notificationSystem.sendNotification(
-				// 		{
-				// 			type: 'email',
-				// 			target: this.config.notifications.email.from
-				// 		},
-				// 		report
-				// 	)
-				// }
-				// if (
-				// 	this.config.notifications.webhook &&
-				// 	this.config.notifications.webhook.url
-				// ) {
-				// 	await this.notificationSystem.sendNotification(
-				// 		{
-				// 			type: 'webhook',
-				// 			target: this.config.notifications.webhook.url
-				// 		},
-				// 		report
-				// 	)
-				// }
+				const { report, title } =
+					await this.reportService.generateReport(
+						subscription
+					)
+				if (config.notifications.email) {
+					logger.info(
+						`发送邮件通知 ${subscription.owner}/${subscription.repo}`
+					)
+					const content = mki().render(report)
+					await this.notificationSystem.sendNotification(
+						{
+							type: 'email',
+							target: config.notifications.email
+								.from
+						},
+						title,
+						content
+					)
+				}
+				if (
+					config.notifications.webhook &&
+					config.notifications.webhook.url
+				) {
+					await this.notificationSystem.sendNotification(
+						{
+							type: 'webhook',
+							target: config.notifications.webhook
+								.url
+						},
+						title,
+						report
+					)
+				}
 				logger.info(
 					`任务执行完成 ${subscription.owner}/${subscription.repo}`
 				)

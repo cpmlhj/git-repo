@@ -39,12 +39,14 @@ export class ReportService {
 		const { owner, repo, eventTypes, frequency } = subscription
 		const Strategy =
 			this.subscriptionManager.getStrategyForFrequency(frequency)
-		const report = await this.reportGenerator.generateReport({
-			owner,
-			repo,
-			frequencyStrategy: Strategy,
-			eventTypes: eventTypes || []
-		})
+		const { report, title } = await this.reportGenerator.generateReport(
+			{
+				owner,
+				repo,
+				frequencyStrategy: Strategy,
+				eventTypes: eventTypes || []
+			}
+		)
 		if (this.config.exports) {
 			await this.exportContentToMarkdown({
 				owner,
@@ -57,7 +59,7 @@ export class ReportService {
 						: undefined
 			})
 		}
-		return report
+		return { report, title }
 	}
 
 	/**

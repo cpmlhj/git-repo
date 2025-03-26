@@ -25,6 +25,8 @@ export interface Config {
 			pass: string
 			/** 发件人 */
 			from: string
+			/** 收件人 */
+			to: string
 		}
 		/** Webhook 配置 */
 		webhook?: {
@@ -148,16 +150,8 @@ export class ConfigManager {
 			githubToken: process.env.GITHUB_TOKEN || '',
 			llm: this.getModelConfig(),
 			notifications: {
-				email: yamlConfig?.notifications?.email || {
-					host: process.env.SMTP_HOST,
-					port: parseInt(process.env.SMTP_PORT || '587'),
-					user: process.env.SMTP_USER,
-					pass: process.env.SMTP_PASS,
-					from: process.env.SMTP_FROM
-				},
-				webhook: yamlConfig?.notifications?.webhook || {
-					url: process.env.WEBHOOK_URL
-				}
+				email: yamlConfig?.notifications?.email,
+				webhook: yamlConfig?.notifications?.webhook
 			},
 			subscriptions: {
 				save_path:
