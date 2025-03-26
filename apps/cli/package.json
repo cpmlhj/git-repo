@@ -7,7 +7,7 @@
 		"github-sentinel": "dist/index.js"
 	},
 	"scripts": {
-		"build": "tsup && cp ecosystem.config.yaml dist/",
+		"build": "tsup ",
 		"dev": "tsup --watch",
 		"start": "node dist/index.js",
 		"lint": "eslint src/**/*.ts",

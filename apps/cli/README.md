@@ -46,6 +46,7 @@ notifications:
     user: your-email@example.com
     pass: your-password
     from: your-email@example.com
+    to: to-email@example.com
   # Webhook配置（可选）
   webhook:
     url: https://your-webhook-url.com
@@ -108,20 +109,17 @@ github-sentinel check [options]
 # 启动后台监控服务
 github-sentinel start [options]
 
-选项：
-  -p, --proxy <VALUE>      设置代理地址
-  -f, --file-path <VALUE>  导出文件路径
 ```
 
 ## 💾 数据存储
 
-- 订阅配置数据存储在 `data/subscriptions.json` 文件中
+- 订阅配置数据存储在 `subscriptions/subscriptions.json` 文件中
 - 导出的更新记录将保存在指定的导出文件路径（通过 --file-path 选项或config.yaml中的exports.path设置）
 - 导出格式可以是Markdown（md）或JSON格式（通过config.yaml中的exports.format设置）
 
 ## 🔧 代理配置
 
 可以通过以下三种方式配置代理：
-1. 环境变量：`export HTTPS_PROXY=http://your-proxy-url`
+1. 环境变量：`export proxy=http://your-proxy-url`
 2. 命令行参数：使用 `-p` 或 `--proxy` 选项
-3. 配置文件：在config.yaml中设置httpsProxy字段
+
