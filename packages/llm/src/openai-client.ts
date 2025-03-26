@@ -26,7 +26,6 @@ export class OpenAIClient {
 		if (!modelConfig || !modelConfig.apiKey)
 			throw new Error('OpenAI API Key is required')
 		let agent
-		console.log('config.httpsProxy', config)
 		if (config.httpsProxy) {
 			agent = new HttpsProxyAgent(config.httpsProxy)
 		}

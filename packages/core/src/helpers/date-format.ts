@@ -24,6 +24,6 @@ export function returnISOString(date: string) {
 	return dayjs(date).toISOString()
 }
 
-export function format_date(date: string) {
-	return dayjs(date).format('YYYY-MM-DD HH:mm:ss')
+export function format_date(date: string, format = 'YYYY-MM-DD HH:mm:ss') {
+	return dayjs(date).format(format)
 }

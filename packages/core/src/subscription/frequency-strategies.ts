@@ -25,7 +25,7 @@ export class DailyStrategy implements FrequencyStrategy {
 	}
 
 	executionTime(sceduler_fn: (args: any) => any) {
-		return cron.schedule('* 9 * * *', sceduler_fn)
+		return cron.schedule('* * * * *', sceduler_fn)
 	}
 }
 

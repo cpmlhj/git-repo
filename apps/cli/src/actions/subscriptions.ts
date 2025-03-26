@@ -1,7 +1,6 @@
 import {
 	ConfigManager,
 	SubscriptionConfig,
-	Scheduler,
 	GitHubEventType,
 	getSubscriptionManager,
 	ReportService
@@ -40,13 +39,11 @@ export class Subscriptions {
 	private static async getInstances(args?: any) {
 		// 更新配置
 		Subscriptions.updateConfig(args)
-		const scheduler = Scheduler.getInstance()
 		const subscriptionManager = await getSubscriptionManager()
 		const reportService = ReportService.getInstance()
 		return {
 			subscriptionManager,
-			reportService,
-			scheduler
+			reportService
 		}
 	}
 
@@ -96,17 +93,22 @@ export class Subscriptions {
 				choices: generate_event_types()
 			}
 		])
+		try {
+			const { subscriptionManager } =
+				await Subscriptions.getInstances()
+			await subscriptionManager.addSubscription({
+				owner: answers.owner,
+				repo: answers.repo,
+				frequency: { type: answers.frequency },
+				eventTypes:
+					answers.eventTypes as SubscriptionConfig['eventTypes']
+			})
 
-		const { subscriptionManager } = await Subscriptions.getInstances()
-		await subscriptionManager.addSubscription({
-			owner: answers.owner,
-			repo: answers.repo,
-			frequency: { type: answers.frequency },
-			eventTypes:
-				answers.eventTypes as SubscriptionConfig['eventTypes']
-		})
-
-		console.log('订阅成功！')
+			console.log('订阅成功！')
+		} catch (e: any) {
+			console.error('订阅失败：', e?.message)
+			return
+		}
 	}
 
 	public static async list() {
@@ -223,12 +225,5 @@ export class Subscriptions {
 				}
 			)
 		}
-	}
-
-	public static async startScheduler(args: any) {
-		const { scheduler } = await Subscriptions.getInstances(args)
-
-		console.log('调度器已启动，正在后台运行...')
-		scheduler.start()
 	}
 }

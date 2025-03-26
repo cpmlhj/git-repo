@@ -9,6 +9,7 @@ import {
 import { EventContentGenerators, EXPORT_CHUNK_FINISHED } from './events_outpus'
 import { FrequencyStrategy } from '../subscription/frequency-strategies'
 import { GenerationEventEmitter } from '../events'
+import { logger } from '../helpers/logger'
 
 interface ReportGeneratorConfig {
 	githubToken: string
@@ -24,9 +25,9 @@ export class ReportGenerator {
 
 	private eventEmitter: GenerationEventEmitter
 
-	constructor(config: ReportGeneratorConfig) {
+	constructor() {
 		this.llmClient = new OpenAIClient()
-		this.githubClient = new OctokitGitHubClient(config.githubToken)
+		this.githubClient = new OctokitGitHubClient()
 		this.eventEmitter = GenerationEventEmitter.getInstance()
 	}
 
@@ -171,6 +172,7 @@ export class ReportGenerator {
 
 		// 统计各类型事件数量
 		for (const [type, events] of Object.entries(eventsByType)) {
+			logger.info(`events: ${events}`)
 			stats += `- ${this.formatEventType(type)}: ${events.length} 个\n`
 		}
 
@@ -371,7 +373,7 @@ export class ReportGenerator {
 				event_data
 			}
 		} catch (e) {
-			console.error('生成报告时发生错误:', e)
+			logger.error('生成报告时发生错误:', e)
 			throw e
 		}
 	}

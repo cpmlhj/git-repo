@@ -1,1 +1,1 @@
-export * from './scheduler'
+export { Scheduler } from './scheduler'

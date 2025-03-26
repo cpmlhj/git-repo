@@ -3,6 +3,7 @@ import { parse } from 'yaml'
 import { readFileSync } from 'fs'
 import { resolve, isAbsolute } from 'path'
 import { Model } from '../types'
+import { logger } from '../helpers/logger'
 
 /**
  * 配置项接口
@@ -91,7 +92,9 @@ export class ConfigManager {
 			OLLAMA_MODEL
 		} = process.env
 		if (!OPENAI_API_KEY && !OLLAMA_URL) {
-			throw new Error('请配置 OPENAI_API_KEY 或 OLLAMA_URL')
+			logger.error('请配置 OPENAI_API_KEY 或 OLLAMA_URL')
+			// 直接停止运行
+			process.exit(1)
 		}
 		if (OPENAI_API_KEY) {
 			return {
@@ -106,7 +109,9 @@ export class ConfigManager {
 				model: OLLAMA_MODEL || 'mistral'
 			}
 		}
-		throw new Error('未配置 OPENAI_API_KEY 或 OLLAMA_URL')
+		// 直接停止运行
+		logger.error('请配置 OPENAI_API_KEY 或 OLLAMA_URL')
+		process.exit(1)
 	}
 
 	/**
@@ -114,7 +119,9 @@ export class ConfigManager {
 	 */
 	private loadConfig(): Config {
 		// 加载 .env 文件
-		dotenv.config()
+		dotenv.config({
+			path: resolve(process.cwd(), '.env')
+		})
 
 		// 尝试加载 YAML 配置文件
 		let yamlConfig
@@ -123,7 +130,7 @@ export class ConfigManager {
 			const yamlContent = readFileSync(yamlPath, 'utf8')
 			yamlConfig = parse(yamlContent)
 		} catch (error) {
-			console.warn('未找到 YAML 配置文件或解析失败，将使用默认配置')
+			logger.info('未找到 YAML 配置文件或解析失败，将使用默认配置')
 		}
 		// 合并环境变量和 YAML 配置
 		if (yamlConfig && yamlConfig.exports) {

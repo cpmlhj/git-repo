@@ -3,6 +3,7 @@ import { SubscriptionConfig } from '../types'
 import { format_date } from '../helpers/date-format'
 import { ReportGenerator } from './repo-generator'
 import { SubscriptionManager } from '../subscription'
+import { logger } from '../helpers/logger'
 
 import fs from 'fs'
 import path from 'path'
@@ -19,9 +20,7 @@ export class ReportService {
 	private constructor() {
 		this.config = ConfigManager.getInstance().getConfig()
 		this.subscriptionManager = SubscriptionManager.getInstance()
-		this.reportGenerator = new ReportGenerator({
-			githubToken: this.config.githubToken
-		})
+		this.reportGenerator = new ReportGenerator()
 	}
 
 	/**
@@ -98,7 +97,7 @@ export class ReportService {
 				})
 			}
 		} catch (error) {
-			console.error(
+			logger.error(
 				`报告生成失败 ${subscription.owner}/${subscription.repo}:`,
 				error
 			)

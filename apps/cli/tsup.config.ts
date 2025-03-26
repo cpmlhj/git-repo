@@ -2,7 +2,10 @@ import { createTsupConfig } from '../../build/tsup.config'
 
 export default createTsupConfig({
 	isServer: true,
-	entry: ['src/index.ts'],
+	format: ['cjs'],
+	entry: ['src/index.ts', 'src/scheduler.ts'],
 	external: ['inquirer', 'commander', 'colors'],
-	noExternal: ['@github-analytics/core']
+	noExternal: ['@github-analytics/core'],
+	splitting: false,
+	sourcemap: false
 })

@@ -1,27 +1,17 @@
-import { defineConfig } from 'tsup'
+import { defineConfig, Options } from 'tsup'
 
-export function createTsupConfig({
-	isServer = false,
-	entry,
-	external = [],
-	noExternal = []
-}: {
-	isServer?: boolean
-	entry: string[]
-	external?: string[]
-	noExternal?: string[]
-}) {
+export function createTsupConfig(option: Options & { isServer?: boolean }) {
 	return defineConfig({
-		entry,
 		format: ['cjs', 'esm'],
 		dts: true,
-		minify: !isServer,
+		minify: !option.isServer,
 		clean: true,
-		external,
-		noExternal,
+		external: [],
+		noExternal: [],
 		treeshake: true,
 		splitting: true,
 		sourcemap: true,
-		outDir: 'dist'
+		outDir: 'dist',
+		...option
 	})
 }

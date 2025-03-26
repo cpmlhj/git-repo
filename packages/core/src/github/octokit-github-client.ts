@@ -1,27 +1,51 @@
 // @ts-ignore
 import { Octokit } from '@octokit/rest'
-import { GitHubEventType, IGitHubClient, GithubIssuesState } from '../types'
+import { GitHubEventType, GithubIssuesState } from '../types'
 import { returnISOString } from '../helpers/date-format'
 import dayjs from 'dayjs'
+import { ConfigManager } from '../config/'
+import { logger } from '../helpers/logger'
 /**
  * 基于Octokit的GitHub API客户端实现
  */
-export class OctokitGitHubClient implements IGitHubClient {
+export class OctokitGitHubClient {
 	private client: Octokit
+
+	private configManager: ConfigManager
 
 	private static instance: OctokitGitHubClient
 
-	constructor(token: string) {
+	constructor() {
+		this.configManager = ConfigManager.getInstance()
+		const { githubToken } = this.configManager.getConfig()
 		this.client = new Octokit({
-			auth: token
+			auth: githubToken
 		})
 	}
 
-	static getInstance(token: string) {
+	static getInstance() {
 		if (!this.instance) {
-			this.instance = new OctokitGitHubClient(token)
+			this.instance = new OctokitGitHubClient()
 		}
 		return this.instance
+	}
+
+	/**
+	 *  查询是否存在仓库
+	 */
+	async isRepositoryExists(owner: string, repo: string) {
+		try {
+			await this.client.repos.get({
+				owner,
+				repo
+			})
+			return true
+		} catch (e: any) {
+			if (e && e.status === 404) {
+				return false
+			}
+			return false
+		}
 	}
 
 	/**
@@ -46,47 +70,7 @@ export class OctokitGitHubClient implements IGitHubClient {
 
 			return data
 		} catch (e) {
-			console.warn(e)
-		}
-	}
-
-	/**
-	 * 获取仓库信息
-	 */
-	async getRepositoryInfo({
-		owner,
-		repo
-	}: {
-		owner: string
-		repo: string
-	}): Promise<any> {
-		try {
-			const { data } = await this.client.repos.get({
-				owner,
-				repo
-			})
-			return data
-		} catch (e) {
-			console.warn(e)
-		}
-	}
-
-	// 获取最新release信息
-	async getLatestRelease({
-		owner,
-		repo
-	}: {
-		owner: string
-		repo: string
-	}): Promise<any> {
-		try {
-			const { data } = await this.client.repos.getLatestRelease({
-				owner,
-				repo
-			})
-			return data
-		} catch (e) {
-			console.warn(e)
+			logger.warning(e)
 		}
 	}
 
@@ -171,7 +155,7 @@ export class OctokitGitHubClient implements IGitHubClient {
 			if (!range_date) return data
 			return this.getListDataWithUnit(range_date, data)
 		} catch (e) {
-			console.error(e)
+			logger.error(e)
 		}
 	}
 

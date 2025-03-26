@@ -6,7 +6,9 @@ import {
 	SubscriptionConfig,
 	SubscriptionFrequency
 } from '../types'
+import { OctokitGitHubClient } from '../github'
 import { Config, ConfigManager } from '../config'
+import { logger } from '../helpers/logger'
 import {
 	DailyStrategy,
 	WeeklyStrategy,
@@ -21,12 +23,15 @@ export class SubscriptionManager implements ISubscriptionManager {
 	private subscriptionsFile: string
 	private subscriptions: SubscriptionConfig[]
 
+	private octokitClient: OctokitGitHubClient
+
 	private config: Config
 
 	private static instance: SubscriptionManager
 
 	constructor() {
 		this.config = ConfigManager.getInstance().getConfig()
+		this.octokitClient = OctokitGitHubClient.getInstance()
 		const dir = this.config.subscriptions.save_path
 		this.subscriptionsFile = path.join(dir, 'subscriptions.json')
 		this.subscriptions = []
@@ -74,14 +79,15 @@ export class SubscriptionManager implements ISubscriptionManager {
 					'utf-8'
 				)
 				this.subscriptions = JSON.parse(data)
-				console.log(`初始化订阅管理器成功`)
+				logger.info(`获取信息订阅信息成功`)
 			} catch (error) {
+				logger.error(error)
 				// 如果文件不存在，创建一个空的订阅列表
 				this.subscriptions = []
 				await this.saveSubscriptions()
 			}
 		} catch (error: any) {
-			throw new Error(`初始化订阅管理器失败: ${error.message}`)
+			throw new Error(`获取信息订阅信息失败: ${error.message}`)
 		}
 	}
 
@@ -89,6 +95,16 @@ export class SubscriptionManager implements ISubscriptionManager {
 	 * 添加订阅
 	 */
 	async addSubscription(config: SubscriptionConfig): Promise<void> {
+		// 检查输入仓库是否存在
+		const exists = await this.octokitClient.isRepositoryExists(
+			config.owner,
+			config.repo
+		)
+		if (!exists) {
+			throw new Error(
+				`当前仓库不存在: ${config.owner}/${config.repo}`
+			)
+		}
 		const existingIndex = this.subscriptions.findIndex(
 			(sub) =>
 				sub.owner === config.owner && sub.repo === config.repo
