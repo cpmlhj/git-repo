@@ -10,9 +10,13 @@
 		"test": "jest"
 	},
 	"dependencies": {
+		"@github-analytics/core": "workspace:*",
+		"@langchain/community": "^0.3.37",
+		"@langchain/core": "^0.3.43",
+		"@langchain/openai": "^0.5.0",
 		"https-proxy-agent": "^7.0.6",
-		"openai": "^4.0.0",
-		"@github-analytics/core": "workspace:*"
+		"langchain": "^0.3.19",
+		"openai": "^4.0.0"
 	},
 	"devDependencies": {
 		"@types/jest": "^29.0.0",

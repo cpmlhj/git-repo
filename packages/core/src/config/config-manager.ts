@@ -11,6 +11,8 @@ import { logger } from '../helpers/logger'
 export interface Config {
 	/** GitHub Token */
 	githubToken: string
+	/** AI Platform */
+	platform: 'openai' | 'ollama'
 	/** 通知配置 */
 	notifications: {
 		/** 邮件配置 */
@@ -159,7 +161,8 @@ export class ConfigManager {
 					resolve(process.cwd(), 'subscriptions')
 			},
 			httpsProxy: process.env.proxy,
-			exports: yamlConfig?.exports || undefined
+			exports: yamlConfig?.exports || undefined,
+			platform: 'openai'
 		}
 	}
 }

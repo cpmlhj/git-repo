@@ -12,7 +12,8 @@ GitHub Sentinel 是一个强大的 GitHub 仓库监控工具，帮助您自动�
 - 📦 多样化的事件订阅（Issues、PRs、Releases、Discussions）
 - 📧 支持邮件和 Webhook 通知
 - 🎯 智能的事件过滤和聚合
-- 📊 美观的报告生成
+- 📊 支持不同大模型报告生成
+- 🌐 可扩展性，支持获取最新HackerNews信息报告生成
 
 ## 🚀 快速开始
 
@@ -57,15 +58,7 @@ OPENAI_MODEL=gpt-4-turbo-preview      # 可选，默认使用gpt-4-turbo-preview
 OPENAI_BASE_URL=your_api_base_url     # 可选，自定义API基础URL
 ```
 
-### 使用示例
 
-```typescript
-import { App } from '@github-sentinel/core';
-
-// 启动应用
-const app = App.getInstance();
-app.start();
-```
 
 ## 📦 项目结构
 
@@ -86,6 +79,7 @@ app.start();
 - Node.js
 - GitHub API
 - YAML
+- langchain
 
 ## 📄 许可证
 

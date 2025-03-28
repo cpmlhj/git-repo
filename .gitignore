@@ -7,5 +7,6 @@ data/*.json
 .turbo
 reports
 exports
-
+*logs
+*subscriptions.json
 .vscode

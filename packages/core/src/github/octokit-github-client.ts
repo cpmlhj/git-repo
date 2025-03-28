@@ -80,7 +80,7 @@ export class OctokitGitHubClient {
 		eventType,
 		since,
 		state = 'closed', // 默认获取已关闭的问题
-		per_page = 2, // 默认20条
+		per_page = 20, // 默认20条
 		page = 1,
 		range_date
 	}: {

@@ -47,13 +47,10 @@ export class GenerationEventEmitter extends EventEmitter {
 				}
 			}
 		}
-
 		this.on('generation', handler)
 		const cleanup = () => {
-			console.log('cleanup')
 			this.removeListener('generation', handler)
 			this.taskListeners.delete(taskId)
-			console.log(this.taskListeners.has(taskId), '>>>>>?????????')
 		}
 		this.taskListeners.set(taskId, cleanup)
 		return cleanup

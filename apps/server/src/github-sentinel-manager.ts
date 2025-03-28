@@ -4,8 +4,7 @@ import {
 	getSubscriptionManager,
 	SubscriptionManager,
 	ReportService,
-	Scheduler,
-	Config
+	HackerNewsManager
 } from '@github-analytics/core'
 import { resolve } from 'path'
 
@@ -19,8 +18,8 @@ export class GithubSentinelManager {
 	private subscriptionManager: SubscriptionManager | null = null
 	private configManager: ConfigManager | null = null
 	private notificationSystem: NotificationSystem | null = null
-	private scheduler: Scheduler | null = null
 	private ReportService: ReportService | null = null
+	private hackerNewsManager: HackerNewsManager | null = null
 
 	private constructor(config: SentinelManagerProps) {
 		this.init(config)
@@ -61,6 +60,13 @@ export class GithubSentinelManager {
 		return this.configManager
 	}
 
+	getHackerNewsManager() {
+		if (!this.hackerNewsManager) {
+			this.hackerNewsManager = new HackerNewsManager()
+		}
+		return this.hackerNewsManager
+	}
+
 	getNotificationSystem() {
 		return this.notificationSystem
 	}
@@ -69,10 +75,32 @@ export class GithubSentinelManager {
 		return this.ReportService
 	}
 
-	getScheduler() {
-		if (!this.scheduler) {
-			this.scheduler = Scheduler.getInstance()
+	updateModelConfig({
+		modelType,
+		modelConfig
+	}: {
+		modelType: 'openai' | 'ollama'
+		modelConfig?: {
+			model: string
+			temperature?: number
+			maxTokens?: number
 		}
-		return this.scheduler
+	}) {
+		const config = this.configManager?.getConfig()
+		if (config) {
+			const { llm } = config
+			// 选择模型是否有改变
+			if (
+				modelType === 'openai' &&
+				modelConfig?.model !== llm.model
+			) {
+				this.configManager?.setConfig('llm', {
+					...llm,
+					...modelConfig
+				})
+			}
+
+			// TODO OLLAMA 设置
+		}
 	}
 }

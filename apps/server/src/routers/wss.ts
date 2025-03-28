@@ -21,6 +21,47 @@ export const WssRouter = router({
 			return () => ee.off(WSEventName.REPORT_GENERATE, emitReport)
 		})
 	}),
+	generateHackerNewsReport: baseProcedure.subscription(() => {
+		return observable<GenerationEvent>((emit) => {
+			const emitReport = (chunk: GenerationEvent) => {
+				emit.next(chunk)
+				if (chunk.type === 'complete') {
+					ee.off(
+						WSEventName.HACKER_NEWS_GENERATE,
+						emitReport
+					)
+					return
+				}
+			}
+			ee.on(WSEventName.HACKER_NEWS_GENERATE, emitReport)
+			return () =>
+				ee.off(WSEventName.HACKER_NEWS_GENERATE, emitReport)
+		})
+	}),
+	subscribeHackerNews: baseProcedure
+		.input(
+			z.object({
+				modelType: modelTypeSchema,
+				modelConfig: z
+					.object({
+						model: z.string(),
+						temperature: z.number().optional(),
+						maxTokens: z.number().optional()
+					})
+					.optional()
+			})
+		)
+		.mutation(async ({ ctx, input }) => {
+			ctx.GithubSentinelManager.updateModelConfig({
+				modelConfig: input.modelConfig,
+				modelType: input.modelType
+			})
+			const exporter =
+				ctx.GithubSentinelManager.getHackerNewsManager()
+			exporter.getHotTopics((chunk: GenerationEvent) =>
+				ee.emit(WSEventName.HACKER_NEWS_GENERATE, chunk)
+			)
+		}),
 	submitReportGeneration: baseProcedure
 		.input(
 			z.object({
@@ -51,26 +92,12 @@ export const WssRouter = router({
 					throw new Error('未找到订阅信息')
 				}
 
-				const config =
-					ctx.GithubSentinelManager.getConfigManager()
+				ctx.GithubSentinelManager.updateModelConfig({
+					modelConfig: input.modelConfig,
+					modelType: input.modelType
+				})
 				const exporter =
 					ctx.GithubSentinelManager.getReportService()
-				if (config) {
-					const { llm } = config.getConfig()
-					const { modelType, modelConfig } = input
-					// 选择模型是否有改变
-					if (
-						modelType === 'openai' &&
-						modelConfig?.model !== llm.model
-					) {
-						config.setConfig('llm', {
-							...llm,
-							...modelConfig
-						})
-					}
-
-					// TODO OLLAMA 设置
-				}
 
 				exporter?.generateNow(
 					subscription,

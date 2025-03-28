@@ -105,3 +105,42 @@ export interface INotificationSystem {
 	/** 移除通知配置 */
 	removeNotificationConfig(type: string, target: string): Promise<void>
 }
+
+/**
+ * HackerNews 故事类型
+ */
+export type HNStoryType = 'top' | 'new' | 'best' | 'ask' | 'show' | 'job'
+
+/**
+ * HackerNews 故事项目接口
+ */
+export interface HNStory {
+	id: number
+	title: string
+	url?: string
+	score: number
+	time: number
+	by: string
+	descendants?: number
+	type: 'story' | 'job' | 'poll' | 'pollopt'
+	kids?: number[]
+}
+
+/**
+ * HackerNews 统计分析结果接口
+ */
+export interface HNAnalytics {
+	/** 热门话题分类 */
+	topicCategories: string
+	/** 热度趋势 */
+	trendAnalysis: {
+		timeRange: string
+		score: number
+		commentCount: number
+	}[]
+	/** 活跃用户 */
+	activeUsers: {
+		username: string
+		contributions: number
+	}[]
+}

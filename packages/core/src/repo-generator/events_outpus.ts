@@ -135,6 +135,42 @@ const DiscussionEvent: EventContentGenerator = {
 	generate: () => '暂不支持讨论事件的展示\n\n'
 }
 
+const PullRequestsEventPre = (pre: any[]) => {
+	return pre
+		.map((event) => {
+			return {
+				title: event.title,
+				state: event.state,
+				action: event.action,
+				created_at: event.created_at,
+				updated_at: event.updated_at,
+				base: event.base.ref,
+				head: event.head.ref
+			}
+		})
+		.filter(Boolean)
+}
+
+const IssuesEventPre = (pre: any[]) => {
+	return pre
+		.map((event) => {
+			const pull_request = event.pull_request
+			return {
+				title: event.title,
+				state: event.state,
+				created_at: event.created_at,
+				updated_at: event.updated_at,
+				comments: event.comments,
+				labels: event.labels?.map((label: any) => label.name),
+				author_type: event.author_association,
+				is_pr: !!pull_request,
+				merged_at: pull_request?.merged_at,
+				draft: event.draft
+			}
+		})
+		.filter(Boolean)
+}
+
 export const EXPORT_CHUNK_FINISHED = '@report_chunk_finish'
 
 export const EventContentGenerators = {
@@ -145,4 +181,9 @@ export const EventContentGenerators = {
 	PushEvent,
 	ReleaseEvent,
 	DiscussionEvent
+}
+
+export const EventDataParesers = {
+	IssuesEvent: IssuesEventPre,
+	PullRequestEvent: PullRequestsEventPre
 }
