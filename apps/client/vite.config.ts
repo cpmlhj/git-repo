@@ -7,7 +7,18 @@ export default defineConfig({
 	plugins: [react(), tailwindcss()],
 	build: {
 		outDir: '../server/dist/client',
-		emptyOutDir: true
+		emptyOutDir: true,
+		rollupOptions: {
+			treeshake: 'smallest',
+			output: {
+				manualChunks: {
+					antd: ['antd'],
+					'react-syntax-highlighter': [
+						'react-syntax-highlighter'
+					]
+				}
+			}
+		}
 	},
 	server: {
 		proxy: {

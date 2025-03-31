@@ -69,7 +69,7 @@ export class llmClient {
 	}: {
 		question: string
 		prompt: string
-	}) {
+	}): Promise<ReadableStream<string> & AsyncIterable<string>> {
 		try {
 			const chain = await this.createChain({ prompt })
 			const stream = await chain.stream({ input: question })
