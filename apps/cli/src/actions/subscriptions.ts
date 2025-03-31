@@ -4,7 +4,7 @@ import {
 	GitHubEventType,
 	getSubscriptionManager,
 	ReportService
-} from '@github-analytics/core'
+} from '@github-sentinel/core'
 import inquirer from 'inquirer'
 import { resolve } from 'path'
 

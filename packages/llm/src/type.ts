@@ -3,6 +3,7 @@ interface BaseModel {
 	temperature?: number
 	proxyAgent?: any
 }
+
 export interface OpenAIModel extends BaseModel {
 	apiKey: string
 	model: string

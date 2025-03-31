@@ -5,7 +5,7 @@ export default createTsupConfig({
 	format: ['cjs'],
 	entry: ['src/index.ts', 'src/scheduler.ts'],
 	external: ['inquirer', 'commander', 'colors'],
-	noExternal: ['@github-analytics/core'],
+	noExternal: ['@github-sentinel/core'],
 	splitting: false,
 	sourcemap: false
 })

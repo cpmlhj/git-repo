@@ -1,6 +1,6 @@
 #! /usr/bin/env node
 
-import { Scheduler } from '@github-analytics/core/scheduler'
+import { Scheduler } from '@github-sentinel/core/scheduler'
 
 const scheduler = Scheduler.getInstance()
 

@@ -1,7 +1,7 @@
 import { router, baseProcedure } from '../trpc'
 import { observable } from '@trpc/server/observable'
 import { ee } from '../routers'
-import { GenerationEvent } from '@github-analytics/core'
+import { GenerationEvent } from '@github-sentinel/core'
 import { WSEventName } from './constants'
 import { modelTypeSchema } from './llm'
 import * as z from 'zod'
@@ -12,10 +12,6 @@ export const WssRouter = router({
 		return observable<GenerationEvent>((emit) => {
 			const emitReport = (chunk: GenerationEvent) => {
 				emit.next(chunk)
-				if (chunk.type === 'complete') {
-					ee.off(WSEventName.REPORT_GENERATE, emitReport)
-					return
-				}
 			}
 			ee.on(WSEventName.REPORT_GENERATE, emitReport)
 			return () => ee.off(WSEventName.REPORT_GENERATE, emitReport)

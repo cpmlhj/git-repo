@@ -1,5 +1,5 @@
 {
-	"name": "@github-analytics/cli",
+	"name": "@github-sentinel/cli",
 	"version": "0.1.0",
 	"private": true,
 	"main": "dist/index.js",
@@ -14,7 +14,7 @@
 		"clean": "rm -rf dist"
 	},
 	"dependencies": {
-		"@github-analytics/core": "workspace:*",
+		"@github-sentinel/core": "workspace:*",
 		"@types/colors": "^1.2.4",
 		"colors": "^1.4.0",
 		"commander": "^11.1.0",

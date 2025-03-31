@@ -11,7 +11,7 @@ GitHub Sentinel 的命令行工具，提供便捷的仓库监控管理功能。
 ### 安装
 
 ```bash
-npm install -g @github-analytics/cli
+npm install -g @github-sentinel/cli
 ```
 
 ### 环境变量配置

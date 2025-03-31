@@ -1,26 +1,63 @@
-import { OpenAIModel } from './type'
-import { ConfigManager } from '@github-analytics/core'
-import { ChatOpenAI } from '@langchain/openai'
+import { ConfigManager } from '@github-sentinel/core'
 import { RunnableSequence } from '@langchain/core/runnables'
 import { ChatPromptTemplate } from '@langchain/core/prompts'
 import { StringOutputParser } from '@langchain/core/output_parsers'
-import { HttpsProxyAgent } from 'https-proxy-agent'
+import { BaseLLMClient } from './models/base'
 export class llmClient {
 	private config: ConfigManager
+
+	private instances: Map<string, BaseLLMClient<any>> = new Map()
+	private currentPlatform: string = ''
 
 	constructor() {
 		this.config = ConfigManager.getInstance()
 	}
 
+	private async loadPlatformClinet(platform: string) {
+		try {
+			const module = await import(`./models/${platform}.ts`)
+
+			const clientClass = module.default
+			const instance: BaseLLMClient<any> = new clientClass()
+			await instance.initInstance()
+			return instance
+		} catch (e) {
+			throw new Error(`平台 ${platform} 未实现或未找到 ${e}`)
+		}
+	}
+
+	private async getCurrentInstance() {
+		const { platform = 'openai' } = this.config.getConfig()
+		if (
+			this.currentPlatform !== platform ||
+			!this.instances.has(platform)
+		) {
+			this.currentPlatform = platform
+			const instance = await this.loadPlatformClinet(platform)
+			this.instances.set(platform, instance)
+		}
+		return this.instances.get(platform)!
+	}
+
+	async getModelList() {
+		const current = await this.getCurrentInstance()
+		return current?.getModelList()
+	}
+
 	async createChain({ prompt }: { prompt: string }) {
+		const { llm } = this.config.getConfig()
 		const template = ChatPromptTemplate.fromMessages([
 			{ role: 'ai', content: prompt },
 			{ role: 'human', content: '{input}' }
 		])
-		const chat = await this.initChat()
+		const current = await this.getCurrentInstance()
+		if (!current) throw new Error(`当前模型平台初始化失败`)
+		// 动态设置model
+		let instance = current.instance
+		instance = instance.bind({ model: llm.model })
 		const chain = RunnableSequence.from([
 			template,
-			chat,
+			current.instance,
 			new StringOutputParser()
 		])
 		return chain
@@ -56,36 +93,5 @@ export class llmClient {
 		} catch (error) {
 			console.error(error)
 		}
-	}
-
-	private initChat() {
-		const { platform = 'openai' } = this.config.getConfig()
-		switch (platform) {
-			case 'openai':
-				return this.initOpenai()
-			// case 'ollama':
-			// 	return this.initOllama()
-			default:
-				throw new Error(`当前平台暂不支持`)
-		}
-	}
-
-	private initOpenai() {
-		const { llm, httpsProxy } = this.config.getConfig()
-		const { model, maxTokens, temperature } = llm as OpenAIModel
-		return new ChatOpenAI({
-			model,
-			maxTokens,
-			temperature,
-			configuration: {
-				httpAgent: httpsProxy
-					? new HttpsProxyAgent(httpsProxy)
-					: undefined
-			}
-		})
-	}
-
-	private async initOllama() {
-		// TODO:
 	}
 }

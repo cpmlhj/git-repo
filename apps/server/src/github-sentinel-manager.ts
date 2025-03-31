@@ -5,7 +5,8 @@ import {
 	SubscriptionManager,
 	ReportService,
 	HackerNewsManager
-} from '@github-analytics/core'
+} from '@github-sentinel/core'
+import { llmClient } from '@github-sentinel/llm'
 import { resolve } from 'path'
 
 interface SentinelManagerProps {
@@ -20,6 +21,8 @@ export class GithubSentinelManager {
 	private notificationSystem: NotificationSystem | null = null
 	private ReportService: ReportService | null = null
 	private hackerNewsManager: HackerNewsManager | null = null
+
+	private llmClient: llmClient | null = null
 
 	private constructor(config: SentinelManagerProps) {
 		this.init(config)
@@ -50,6 +53,7 @@ export class GithubSentinelManager {
 		}
 		this.subscriptionManager = await getSubscriptionManager()
 		this.ReportService = ReportService.getInstance()
+		this.llmClient = new llmClient()
 	}
 
 	getSubscriptionManager() {
@@ -75,6 +79,10 @@ export class GithubSentinelManager {
 		return this.ReportService
 	}
 
+	get llm() {
+		return this.llmClient
+	}
+
 	updateModelConfig({
 		modelType,
 		modelConfig
@@ -88,19 +96,18 @@ export class GithubSentinelManager {
 	}) {
 		const config = this.configManager?.getConfig()
 		if (config) {
-			const { llm } = config
+			const { llm, platform } = config
 			// 选择模型是否有改变
 			if (
-				modelType === 'openai' &&
+				modelType !== platform ||
 				modelConfig?.model !== llm.model
 			) {
 				this.configManager?.setConfig('llm', {
 					...llm,
 					...modelConfig
 				})
+				this.configManager?.setConfig('platform', modelType)
 			}
-
-			// TODO OLLAMA 设置
 		}
 	}
 }

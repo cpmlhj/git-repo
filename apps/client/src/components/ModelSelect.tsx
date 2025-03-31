@@ -12,7 +12,11 @@ export const ModelSelect: FC<{ form: FormInstance }> = ({ form }) => {
 	const { setFieldsValue } = form
 	const modelType = Form.useWatch('modelType', form)
 	// 获取模型列表
-	const { data: models, error } = trpc.llm.getModels.useQuery({
+	const {
+		data: models,
+		error,
+		isLoading
+	} = trpc.llm.getModels.useQuery({
 		modelType: modelType || 'openai'
 	})
 	const handleModelTypeChange = (type: ModelType) => {
@@ -52,6 +56,7 @@ export const ModelSelect: FC<{ form: FormInstance }> = ({ form }) => {
 				help={error?.message}
 			>
 				<Select
+					loading={isLoading}
 					placeholder="请选择模型"
 					options={models?.map((m) => ({
 						label: m,

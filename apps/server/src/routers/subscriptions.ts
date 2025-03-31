@@ -1,5 +1,5 @@
 import { router, baseProcedure } from '../trpc'
-import { SubscriptionConfig } from '@github-analytics/core'
+import { SubscriptionConfig } from '@github-sentinel/core'
 import { z } from 'zod'
 
 const subscriptionSchema = z.object({

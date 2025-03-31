@@ -111,7 +111,6 @@ export class ReportGenerator {
 		} = params.frequencyStrategy.metaData
 		const since = params.frequencyStrategy.getDateRange()
 		const { platform } = this.config.getConfig()
-		console.log(params, '这是什么')
 		// 生成 Markdown 格式的报告
 		const title = `# GitHub 仓库 ${params.owner}/${params.repo} ${periodText}\n\n`
 		try {
